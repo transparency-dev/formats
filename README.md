@@ -15,6 +15,15 @@ While it's not in any way a requirement that transparent systems use these forma
 adopting them will enable a certain amount of interoperability and shared infrastructure
 for basic tooling such as logs and witnesses.
 
+## Formats
+
+The following formats are described in this repository, more detailed information is
+provided in the respective directories:
+### Log Checkpoint
+
+The [`log checkpoint`](./log/README.md#checkpoint-format) represents a commitment to the
+state of a transparent log.
+
 ## Support
 * Mailing list: https://groups.google.com/forum/#!forum/trillian-transparency
 * Slack: https://gtrillian.slack.com/ (invitation)
