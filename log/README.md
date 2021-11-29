@@ -1,16 +1,13 @@
-# Checkpoint and proof format
+# Checkpoint format
 
 This directory contains a description and supporting golang code for
-a reusable Checkpoint and proof format which the TrustFabric team
-uses in various projects.
+a reusable Checkpoint format which the TrustFabric team uses in various
+projects.
 
 The format itself is heavily based on the
 [golang sumbdb head](https://sum.golang.org/latest), and corresponding
-[signed note](https://pkg.go.dev/golang.org/x/mod/sumdb/note) formats.
-
-## Checkpoint format
-
-This consists of two formats: a signed envelope, and a body.
+[signed note](https://pkg.go.dev/golang.org/x/mod/sumdb/note) formats, 
+and consists of two parts: a signed envelope, and a body.
 
 ### Signed envelope
 
@@ -89,21 +86,3 @@ This checkpoint was issued by the log known as "Moon Log", the log's size is
 4027504, in the `other data` section a timestamp is encoded as a 64bit hex
 value, and further application-specific data relating to the phase of the moon
 at the point the checkpoint was issued is supplied following that.
-
-## Log proof format
-
-The individual proof hashes are base64 encoded and written one per line (terminating with `\n`).
-The interpretation and ordering of these hashes MUST be defined by the ecosystem the origin log is a member of.
-
-E.g.:
-
-```text
-Xa/RR4kVQaZZiL5oa3epz0H4dgtdELmfCd3bpTyZVnA=
-Ttyc3PF7pqtMA2pnZdyr0QC9zeIz6h/U5TPI6r692rk=
-sX6VR8ws2ZrACLQsdOb/zHA1rLYNSmtXi6RdkwH0Ud0=
-```
-
-Example proof interpretations are:
-
-* RFC6962 style proofs, with the first line containing the proof node closest to the leaves, and the final line containing the proof node closest to the root.
-* CompactRange proofs, with the first line containing the left-most subtree hash.
