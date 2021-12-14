@@ -27,6 +27,3 @@ state of a transparent log.
 ## Support
 * Mailing list: https://groups.google.com/forum/#!forum/trillian-transparency
 * Slack: https://gtrillian.slack.com/ (invitation)
-
-
-

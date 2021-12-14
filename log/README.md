@@ -21,7 +21,7 @@ All signatures commit to the body only (including its trailing newline, but not
 the blank line's newline - see below for an example).
 
 The signature(s) themselves are in the sumdb note format (concrete example
-below):
+[below](#example)):
 
 `– <identity> <key_hint+signature_bytes>`
 where:
@@ -32,6 +32,12 @@ where:
 and the `signature_bytes` are prefixed with the first 4 bytes of the SHA256 hash
 of the associated public key to act as a hint in identifying the correct key to
 verify with.
+
+For guidance on generating keys, see the
+[note documentation](https://pkg.go.dev/golang.org/x/mod/sumdb/note#hdr-Generating_Keys)
+and [implementation](https://cs.opensource.google/go/x/mod/+/master:sumdb/note/note.go;l=368;drc=ed3ec21bb8e252814c380df79a80f366440ddb2d).
+Of particular note is that the public key and its hash commit to the algorithm
+identifier.
 
 **Differences from sumdb note:**
 Whereas the golang signed note *implementation* currently supports only Ed25519
