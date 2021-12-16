@@ -108,7 +108,7 @@ Instead they can fetch a single checkpoint and confirm it has the N required
 signatures (in addition to the log signature).
 
 Note that this optimization requires the checkpoint _body_ to be byte-equivalent.
-The log signature does not need to be equal; when merging only one of the log's
+The log signature does not need to be equal; when merging, only one of the log's
 signatures over this body will be propagated. The core checkpoint format above
 allows merging for any two consistent checkpoints for the same tree size.
 However, if the `otherdata` extension is used then this can lead to checkpoints
