@@ -114,7 +114,7 @@ allows merging for any two consistent checkpoints for the same tree size.
 However, if the `otherdata` extension is used then this can lead to checkpoints
 that cannot be merged, even at the same tree size.
 
-We recommend that log operators using the `otherdata` consider carefully what
+We recommend that log operators using `otherdata` consider carefully what
 information is included in this. If data is included in `otherdata` that is not
 fixed for a given tree size, then this can easily lead to unmergeable checkpoints.
 The most commonly anticipated cause for this would be including the timestamp at
