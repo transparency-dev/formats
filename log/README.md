@@ -77,6 +77,7 @@ The first 3 lines of the body **MUST** be present in all Checkpoints.
 > Note that golang sumdb implementation is already compatible with this
 `[otherdata]` extension (see
 <https://github.com/golang/mod/blob/d6ab96f2441f9631f81862375ef66782fc4a9c12/sumdb/tlog/note.go#L52>).
+If you plan to use `otherdata` in your log, see the section on [merging checkpoints](#merging-checkpoints).
 
 The first signature on a checkpoint should be from the log which issued it, but there MUST NOT
 be more than one signature from a log identity present on the checkpoint.
@@ -92,3 +93,31 @@ This checkpoint was issued by the log known as "Moon Log", the log's size is
 4027504, in the `other data` section a timestamp is encoded as a 64bit hex
 value, and further application-specific data relating to the phase of the moon
 at the point the checkpoint was issued is supplied following that.
+
+## Merging Checkpoints
+
+This checkpoint format allows a checkpoint that has been independently signed by
+multiple identities to be merged, creating a single checkpoint with multiple
+signatures. This is particularly useful for witnessing, where witnesses will
+independently check consistency of the log and produce a counter-signed copy
+containing two signatures: one for the log, and one for the witness.
+
+The ability to merge signatures for the same body is a useful optimization.
+Clients that require N witness signatures will not be required to fetch N checkpoints.
+Instead they can fetch a single checkpoint and confirm it has the N required
+signatures (in addition to the log signature).
+
+Note that this optimization requires the checkpoint _body_ to be byte-equivalent.
+The log signature does not need to be equal; when merging, only one of the log's
+signatures over this body will be propagated. The core checkpoint format above
+allows merging for any two consistent checkpoints for the same tree size.
+However, if the `otherdata` extension is used then this can lead to checkpoints
+that cannot be merged, even at the same tree size.
+
+We recommend that log operators using `otherdata` consider carefully what
+information is included in this. If data is included in `otherdata` that is not
+fixed for a given tree size, then this can easily lead to unmergeable checkpoints.
+The most commonly anticipated cause for this would be including the timestamp at
+which the checkpoint was requested within the `otherdata`. In this case, no two
+witnesses are likely to ever acquire the same checkpoint body. There may be cases
+where this is unavoidable, but this consequence should be considered in the design.
