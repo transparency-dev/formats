@@ -1,8 +1,9 @@
 # Formats
 
+[![GoDoc](https://godoc.org/github.com/transparency-dev/formats?status.svg)](https://godoc.org/github.com/transparency-dev/formats)
 [![Go Report
 Card](https://goreportcard.com/badge/github.com/transparency-dev/formats)](https://goreportcard.com/report/github.com/transparency-dev/formats)
-[![GoDoc](https://godoc.org/github.com/transparency-dev/formats?status.svg)](https://godoc.org/github.com/transparency-dev/formats)
+[![codecov](https://codecov.io/gh/transparency-dev/formats/branch/main/graph/badge.svg?token=BBCRAMOBY2)](https://codecov.io/gh/transparency-dev/formats)
 [![Slack
 Status](https://img.shields.io/badge/Slack-Chat-blue.svg)](https://gtrillian.slack.com/)
 
