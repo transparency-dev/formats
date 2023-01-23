@@ -24,5 +24,10 @@ import (
 // for this log at distributors, and that will be used to feed
 // checkpoints to witnesses.
 func ID(origin string, key []byte) string {
-	return fmt.Sprintf("%x", sha256.Sum256(key))
+	// Hash both the origin and key, and then hash them together
+	// to create the final ID.
+	oh := sha256.Sum256([]byte(origin))
+	kh := sha256.Sum256(key)
+	hashMe := append([]byte(oh[:]), kh[:]...)
+	return fmt.Sprintf("%x", sha256.Sum256(hashMe))
 }

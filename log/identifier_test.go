@@ -31,13 +31,13 @@ func TestID(t *testing.T) {
 			desc:   "sumdb",
 			origin: "go.sum database tree",
 			pk:     []byte("sum.golang.org+033de0ae+Ac4zctda0e5eza+HJyk9SxEdh+s3Ux18htTTAD8OuAn8"),
-			want:   "3e9617dce5730053cb82f0481b9d289cd3c384a9219ef5509c91aa60d214794e",
+			want:   "e0b4aa62acca10f5bc40bb803eea643cba17a908bd9cf4e9ef8d736bac47fb48",
 		},
 		{
 			desc:   "usbarmory",
 			origin: "Armory Drive Prod 2",
 			pk:     []byte("armory-drive-log+16541b8f+AYDPmG5pQp4Bgu0a1mr5uDZ196+t8lIVIfWQSPWmP+Jv"),
-			want:   "50dfc1866b26a18b65834743645f90737c331bc5e99b44100e5ca555c17821e3",
+			want:   "4ad2fce3c699522bf81ef663bdc973e83a27ea1b8c92ea6d030747d73cd9dae8",
 		},
 	} {
 		t.Run(test.desc, func(t *testing.T) {
