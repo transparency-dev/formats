@@ -24,8 +24,6 @@ import (
 // for this log at distributors, and that will be used to feed
 // checkpoints to witnesses.
 func ID(origin string, key []byte) string {
-	// Hash both the origin and key, and then hash them together
-	// to create the final ID.
 	s := sha256.New()
 	s.Write([]byte("o:"))
 	s.Write([]byte(origin))
