@@ -26,8 +26,10 @@ import (
 func ID(origin string, key []byte) string {
 	// Hash both the origin and key, and then hash them together
 	// to create the final ID.
-	oh := sha256.Sum256([]byte(origin))
-	kh := sha256.Sum256(key)
-	hashMe := append([]byte(oh[:]), kh[:]...)
-	return fmt.Sprintf("%x", sha256.Sum256(hashMe))
+	s := sha256.New()
+	s.Write([]byte("o:"))
+	s.Write([]byte(origin))
+	s.Write([]byte("\nk:"))
+	s.Write(key)
+	return fmt.Sprintf("%x", s.Sum(nil))
 }
