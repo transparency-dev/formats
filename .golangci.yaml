@@ -12,21 +12,6 @@ linters-settings:
       - golang.org/x/net/context
       - github.com/gogo/protobuf/proto
 
-linters:
-  disable-all: true
-  enable:
-    - deadcode
-    - depguard
-    - gocyclo
-    - gofmt
-    - goimports
-    - govet
-    - ineffassign
-    - megacheck
-    - misspell
-    - revive
-    - varcheck
-
 issues:
   # Don't turn off any checks by default. We can do this explicitly if needed.
   exclude-use-default: false
