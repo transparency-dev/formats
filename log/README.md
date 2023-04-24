@@ -57,8 +57,9 @@ The checkpoint body is of the form:
 The first 3 lines of the body **MUST** be present in all Checkpoints.
 
 * `<Origin string>` should be a unique identifier for the log identity which issued the checkpoint.
-  The exact format of this is left undefined, but examples of types of value to put here
-  are the log's URL, a base64 encoded hash of its public key, etc.
+  The exact format of this is left undefined, but best practice is to have a scheme-less URI-like
+  prefix that will be globally unique, and give some idea of the log location/operator,
+  e.g. `example.com/log42`.
 
   The presence of this identifier forms part of the log claim, and guards against two
   logs producing bytewise identical checkpoints.
