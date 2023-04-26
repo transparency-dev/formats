@@ -44,7 +44,7 @@ func (c Checkpoint) Marshal() []byte {
 //
 // The supplied data is expected to begin with the following 3 lines of text,
 // each followed by a newline:
-//   - <ecosystem/version string>
+//   - <origin string>
 //   - <decimal representation of log size>
 //   - <base64 representation of root hash>
 //

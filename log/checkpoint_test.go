@@ -72,7 +72,7 @@ func TestUnmarshalLogState(t *testing.T) {
 				Hash:   []byte("bananas"),
 			},
 		}, {
-			desc: "valid with different ecosystem",
+			desc: "valid with different origin",
 			m:    "Banana\n9944\ndGhlIHZpZXcgZnJvbSB0aGUgdHJlZSB0b3BzIGlzIGdyZWF0IQ==\n",
 			want: log.Checkpoint{
 				Origin: "Banana",
