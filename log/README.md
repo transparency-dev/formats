@@ -61,7 +61,7 @@ The first 3 lines of the body **MUST** be present in all Checkpoints.
   `<dns_name>[/<suffix>]`, where the log operator controls `<dns_name>`, e.g `example.com/log42`.
   With a globally unique `<dns_name>`, this structure reduces the likelihood of origin collision,
   and gives clues to humans about the log operator and what is in the log. The suffix is optional
-  and can be anything. It is used to desambiguate logs owned under the same prefix.
+  and can be anything. It is used to disambiguate logs owned under the same prefix.
 
   The presence of this identifier forms part of the log claim, and guards against two
   logs producing bytewise identical checkpoints.
