@@ -59,7 +59,7 @@ The first 3 lines of the body **MUST** be present in all Checkpoints.
 * `<Origin string>` should be a unique identifier for the log identity which issued the checkpoint.
   The exact format of this is left undefined, but best practice is to use a URI-like strucutre like
   `<dns_name>[/<suffix>]`, where the log operator controls `<dns_name>`, e.g `example.com/log42`.
-  With a globally unique `<dns_name>`, this structure reduces the likelihood of origin collision,
+This structure reduces the likelihood of origin collision,
   and gives clues to humans about the log operator and what is in the log. The suffix is optional
   and can be anything. It is used to disambiguate logs owned under the same prefix.
 
