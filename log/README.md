@@ -57,9 +57,11 @@ The checkpoint body is of the form:
 The first 3 lines of the body **MUST** be present in all Checkpoints.
 
 * `<Origin string>` should be a unique identifier for the log identity which issued the checkpoint.
-  The exact format of this is left undefined, but best practice is to have a scheme-less URI-like
-  prefix that will be globally unique, and give some idea of the log location/operator,
-  e.g. `example.com/log42`.
+  The exact format of this is left undefined, but best practice is to use a URI-like strucutre like
+  `<dns_name>[/<suffix>]`, where the log operator controls `<dns_name>`, e.g `example.com/log42`.
+  With a globally unique `<dns_name>`, this structure reduces the likelihood of origin collision,
+  and gives clues to humans about the log operator and what is in the log. The suffix is optional
+  and can be anything. It is used to desambiguate logs owned under the same prefix.
 
   The presence of this identifier forms part of the log claim, and guards against two
   logs producing bytewise identical checkpoints.
