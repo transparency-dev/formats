@@ -24,42 +24,36 @@ func TestID(t *testing.T) {
 	for _, test := range []struct {
 		desc   string
 		origin string
-		pk     []byte
 		want   string
 	}{
 		{
 			desc:   "sumdb",
 			origin: "go.sum database tree",
-			pk:     []byte("sum.golang.org+033de0ae+Ac4zctda0e5eza+HJyk9SxEdh+s3Ux18htTTAD8OuAn8"),
-			want:   "bdc0d5078d38fc2b9491df373eb7c0d3365bfe661c83edc89112fd38719dc3a0",
+			want:   "a32d071739c062f4973f1db8cc1069f517428d77105962b285bbf918c4062591",
 		},
 		{
 			desc:   "usbarmory",
 			origin: "Armory Drive Prod 2",
-			pk:     []byte("armory-drive-log+16541b8f+AYDPmG5pQp4Bgu0a1mr5uDZ196+t8lIVIfWQSPWmP+Jv"),
-			want:   "a49f0a631f86d3e4fc6726e4389d1cc1998731aa58be95e3e81026d35d2b2902",
+			want:   "48d31bf4bc3c95c7daddf7f8d33bb9ef1bff7500a40566eb56c97ff30eb6d44b",
 		},
 		{
 			desc:   "rekor 1",
 			origin: "rekor.sigstore.dev - 2605736670972794746",
-			pk:     []byte("rekor.sigstore.dev+c0d23d6a+AjBZMBMGByqGSM49AgEGCCqGSM49AwEHA0IABNhtmPtrWm3U1eQXBogSMdGvXwBcK5AW5i0hrZLOC96l+smGNM7nwZ4QvFK/4sueRoVj//QP22Ni4Qt9DPfkWLc="),
-			want:   "50ed07082843287df5342353a4084563e6eaeb7bbaaa961d45400dde004c1186",
+			want:   "254283943e39c2a88e4d9185d4d7aa9f21afe369749872358204e8c25a00a80a",
 		},
 		{
 			desc:   "rekor 2",
 			origin: "rekor.sigstore.dev - 3904496407287907110",
-			pk:     []byte("rekor.sigstore.dev+c0d23d6a+AjBZMBMGByqGSM49AgEGCCqGSM49AwEHA0IABNhtmPtrWm3U1eQXBogSMdGvXwBcK5AW5i0hrZLOC96l+smGNM7nwZ4QvFK/4sueRoVj//QP22Ni4Qt9DPfkWLc="),
-			want:   "9b2bc13a3839d8a954832caa002ce8d7fb3d0bf7f4ce4a310a7dbbf28de101a8",
+			want:   "c43a5887c927e0594e0a5feb87c2311ec86c3367613001b40dec552473aaa5dc",
 		},
 		{
 			desc:   "rekor 3",
 			origin: "rekor.sigstore.dev - 3904496407287907110",
-			pk:     []byte("armory-drive-log+16541b8f+AYDPmG5pQp4Bgu0a1mr5uDZ196+t8lIVIfWQSPWmP+Jv"),
-			want:   "27ad43bd0470950078c0aeb4bd7293d8dc6e47cb969f18aa958f1db6dd27b337",
+			want:   "c43a5887c927e0594e0a5feb87c2311ec86c3367613001b40dec552473aaa5dc",
 		},
 	} {
 		t.Run(test.desc, func(t *testing.T) {
-			if got, want := log.ID(test.origin, test.pk), test.want; got != want {
+			if got, want := log.ID(test.origin), test.want; got != want {
 				t.Errorf("got != want (%s != %s)", got, want)
 			}
 		})
