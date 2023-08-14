@@ -1,11 +1,10 @@
 # Formats
 
-[![GoDoc](https://godoc.org/github.com/transparency-dev/formats?status.svg)](https://godoc.org/github.com/transparency-dev/formats)
-[![Go Report
-Card](https://goreportcard.com/badge/github.com/transparency-dev/formats)](https://goreportcard.com/report/github.com/transparency-dev/formats)
+[![Go Reference](https://pkg.go.dev/badge/github.com/transparency-dev/formats.svg)](https://pkg.go.dev/github.com/transparency-dev/formats)
+[![Go Report Card](https://goreportcard.com/badge/github.com/transparency-dev/formats)](https://goreportcard.com/report/github.com/transparency-dev/formats)
+[![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/transparency-dev/formats/badge)](https://securityscorecards.dev/viewer/?uri=github.com/transparency-dev/formats)
 [![codecov](https://codecov.io/gh/transparency-dev/formats/branch/main/graph/badge.svg?token=BBCRAMOBY2)](https://codecov.io/gh/transparency-dev/formats)
-[![Slack
-Status](https://img.shields.io/badge/Slack-Chat-blue.svg)](https://gtrillian.slack.com/)
+[![Slack Status](https://img.shields.io/badge/Slack-Chat-blue.svg)](https://gtrillian.slack.com/)
 
 ## Overview
 
