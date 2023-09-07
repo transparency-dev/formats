@@ -346,7 +346,7 @@ func BenchmarkLotsOfIDs(b *testing.B) {
 	}
 }
 
-func benchmarkLotsOfIDs(b *testing.B, numS int, numV int, count int) {
+func benchmarkLotsOfIDs(b *testing.B, ns int, nv int, count int) {
 	lv, err := note.NewVerifier("sum.golang.org+033de0ae+Ac4zctda0e5eza+HJyk9SxEdh+s3Ux18htTTAD8OuAn8")
 	if err != nil {
 		b.Fatalf("NewVerifier: %v", err)
@@ -363,7 +363,7 @@ mb8QLQIs0Z0yP5Cstq6guj87oXWeC9gEM8oVikmm9Wk=
 		b.Fatalf("Unable to open baseNote: %v", err)
 	}
 
-	ss, vs := makeIDs(b, numS, numV)
+	ss, vs := makeIDs(b, ns, nv)
 
 	if baseNote, err = note.Sign(n, ss...); err != nil {
 		b.Fatalf("Failed to sign note: %v", err)
