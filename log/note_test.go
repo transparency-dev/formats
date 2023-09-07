@@ -329,3 +329,79 @@ mb8QLQIs0Z0yP5Cstq6guj87oXWeC9gEM8oVikmm9Wk=
 		})
 	}
 }
+
+func BenchmarkLotsOfIDs(b *testing.B) {
+	for _, t := range []struct {
+		numSigners   int
+		numVerifiers int
+	}{
+		{numSigners: 2, numVerifiers: 2},
+		{numSigners: 2, numVerifiers: 99},
+		{numSigners: 99, numVerifiers: 2},
+		{numSigners: 99, numVerifiers: 99},
+	} {
+		b.Run(fmt.Sprintf("%d verifiers, %d signers", t.numVerifiers, t.numSigners), func(b *testing.B) {
+			benchmarkLotsOfIDs(b, t.numSigners, t.numVerifiers, b.N)
+		})
+	}
+}
+
+func benchmarkLotsOfIDs(b *testing.B, numS int, numV int, count int) {
+	lv, err := note.NewVerifier("sum.golang.org+033de0ae+Ac4zctda0e5eza+HJyk9SxEdh+s3Ux18htTTAD8OuAn8")
+	if err != nil {
+		b.Fatalf("NewVerifier: %v", err)
+	}
+	baseNote := []byte(`go.sum database tree
+6476701
+mb8QLQIs0Z0yP5Cstq6guj87oXWeC9gEM8oVikmm9Wk=
+
+— sum.golang.org Az3grsLX85Gz+s1SiTbgkuqxgItqFq7gsMUEyVnrsa9LM7Us9S+1xbFIGu95949rj4nPRYfvimWEPWL+o3GeoWwOoAw=
+`)
+
+	n, err := note.Open(baseNote, note.VerifierList(lv))
+	if err != nil {
+		b.Fatalf("Unable to open baseNote: %v", err)
+	}
+
+	ss, vs := makeIDs(b, numS, numV)
+
+	if baseNote, err = note.Sign(n, ss...); err != nil {
+		b.Fatalf("Failed to sign note: %v", err)
+	}
+
+	b.ResetTimer()
+	for i := 0; i < count; i++ {
+		_, err := note.Open(baseNote, note.VerifierList(vs...))
+		if err != nil {
+			b.Fatalf("Failed to verify note: %v", err)
+		}
+	}
+}
+
+func makeIDs(t testing.TB, ns int, nv int) ([]note.Signer, []note.Verifier) {
+	t.Helper()
+	vs := []note.Verifier{}
+	ss := []note.Signer{}
+
+	m := ns
+	if nv > m {
+		m = nv
+	}
+
+	for i := 0; i < m; i++ {
+		sk, vk, err := note.GenerateKey(nil, fmt.Sprintf("Señor-%d", i))
+		if err != nil {
+			t.Fatalf("Failed to generate key %d: %v", i, err)
+		}
+		s, err := note.NewSigner(sk)
+		if err != nil {
+			t.Fatalf("Failed to create signer %d: %v", i, err)
+		}
+		v, err := note.NewVerifier(vk)
+		if err != nil {
+			t.Fatalf("Failed to create verifier %d: %v", i, err)
+		}
+		vs, ss = append(vs, v), append(ss, s)
+	}
+	return ss[:ns], vs[:nv]
+}
