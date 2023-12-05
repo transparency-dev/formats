@@ -28,25 +28,27 @@ import (
 	"golang.org/x/mod/sumdb/note"
 )
 
-const (
-	// Note represents a key type that the Go SumDB note will
-	// know about.
-	Note = ""
+// NewVerifier returns a verifier for the given key, if the key's algo is known.
+func NewVerifier(key string) (note.Verifier, error) {
+	parts := strings.SplitN(key, "+", 3)
+	if got, want := len(parts), 3; got != want {
+		return nil, fmt.Errorf("key has %d parts, expected %d: %q", got, want, key)
+	}
+	keyBytes, err := base64.StdEncoding.DecodeString(parts[2])
+	if err != nil {
+		return nil, fmt.Errorf("key has invalid base64 %q: %v", parts[2], err)
+	}
+	if len(keyBytes) < 2 {
+		return nil, fmt.Errorf("invalid key, key bytes too short")
+	}
 
-	// ECDSA is an ECDSA signature over SHA256.
-	// This signature type has been agreed to be represented by algo ID 2 by the note authors.
-	ECDSA = "ecdsa"
-)
-
-// NewVerifier returns a verifier for the given key type and key.
-func NewVerifier(keyType, key string) (note.Verifier, error) {
-	switch keyType {
-	case ECDSA:
+	switch keyBytes[0] {
+	case algECDSAWithSHA256:
 		return NewECDSAVerifier(key)
-	case Note:
-		return note.NewVerifier(key)
+	case algEd25519CosignatureV1:
+		return NewVerifierForCosignatureV1(key)
 	default:
-		return nil, fmt.Errorf("unknown key type %q", keyType)
+		return note.NewVerifier(key)
 	}
 }
 
