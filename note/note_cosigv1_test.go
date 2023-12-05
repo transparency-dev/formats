@@ -103,3 +103,43 @@ func TestSigCoversExtensionLines(t *testing.T) {
 		t.Fatal("Signature did not cover extension lines")
 	}
 }
+
+func TestCoSigV1NewVerifier(t *testing.T) {
+	for _, test := range []struct {
+		name    string
+		pubK    string
+		wantErr bool
+	}{
+		{
+			name: "works",
+			pubK: "TEST+7997405c+AQcC+FTVKf0jlTdHDY3rbevmnKxxPjigCXlVtGe6RIr6",
+		}, {
+			name:    "wrong number of parts",
+			pubK:    "bananas.sigstore.dev+12344556",
+			wantErr: true,
+		}, {
+			name:    "invalid base64",
+			pubK:    "rekor.sigstore.dev+12345678+THIS_IS_NOT_BASE64!",
+			wantErr: true,
+		}, {
+			name:    "invalid algo",
+			pubK:    "rekor.sigstore.dev+12345678+AwEB",
+			wantErr: true,
+		}, {
+			name:    "invalid keyhash",
+			pubK:    "rekor.sigstore.dev+NOT_A_NUMBER+" + sigStoreKeyMaterial,
+			wantErr: true,
+		}, {
+			name:    "incorrect keyhash",
+			pubK:    "rekor.sigstore.dev" + "+" + "00000000" + "+" + sigStoreKeyMaterial,
+			wantErr: true,
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			_, err := NewVerifier(test.pubK)
+			if gotErr := err != nil; gotErr != test.wantErr {
+				t.Fatalf("NewVerifier(%q): %v", test.pubK, err)
+			}
+		})
+	}
+}
