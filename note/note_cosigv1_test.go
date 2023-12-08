@@ -7,6 +7,7 @@ package note
 import (
 	"crypto/rand"
 	"testing"
+	"time"
 
 	"golang.org/x/mod/sumdb/note"
 )
@@ -139,6 +140,41 @@ func TestCoSigV1NewVerifier(t *testing.T) {
 			_, err := NewVerifier(test.pubK)
 			if gotErr := err != nil; gotErr != test.wantErr {
 				t.Fatalf("NewVerifier(%q): %v", test.pubK, err)
+			}
+		})
+	}
+}
+
+func TestCoSigV1Timestamp(t *testing.T) {
+	for _, test := range []struct {
+		name     string
+		sig      note.Signature
+		wantErr  bool
+		wantTime time.Time
+	}{
+		{
+			name:     "works",
+			sig:      note.Signature{Base64: "W+8PSVYlTmUAAAAAOUcMpZzRiZaiZRr94NylbaFKHqXu5KQbk70RPuCZVi3PkU8GZJpCQYgyqjnmuSRCShglqdlUZGUplgn7ECavCA=="},
+			wantTime: time.Unix(1699620182, 0),
+		}, {
+			name:    "wrong type of signature",
+			sig:     note.Signature{Base64: "eQjRQm6eSKzFoiYalgwCPXu2y3ijtg68is9M46JKxuZB+dRfTmeQeDBoXnvxZx2ugnkyV+MUMLXpWs1hPb/W/4xkNQY="},
+			wantErr: true,
+		}, {
+			name:    "gibberish",
+			sig:     note.Signature{Base64: "5%/$!\n 2"},
+			wantErr: true,
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			gotTime, err := CoSigV1Timestamp(test.sig)
+			if gotErr := err != nil; gotErr != test.wantErr {
+				t.Fatalf("got error %q, want err: %v", err, test.wantErr)
+			} else if gotErr {
+				return
+			}
+			if gotTime != test.wantTime {
+				t.Fatalf("got time %v, want %v", gotTime.UnixMilli(), test.wantTime.UnixMilli())
 			}
 		})
 	}

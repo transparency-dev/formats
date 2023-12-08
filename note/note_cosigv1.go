@@ -26,6 +26,11 @@ const (
 	algEd25519CosignatureV1 = 4
 )
 
+const (
+	keyHashSize   = 4
+	timestampSize = 8
+)
+
 // NewSignerForCosignatureV1 constructs a new Signer that produces timestamped
 // cosignature/v1 signatures from a standard Ed25519 encoded signer key.
 //
@@ -63,7 +68,7 @@ func NewSignerForCosignatureV1(skey string) (*Signer, error) {
 			}
 
 			// The signature itself is encoded as timestamp || signature.
-			sig := make([]byte, 0, 8+ed25519.SignatureSize)
+			sig := make([]byte, 0, timestampSize+ed25519.SignatureSize)
 			sig = binary.LittleEndian.AppendUint64(sig, t)
 			sig = append(sig, ed25519.Sign(key, m)...)
 			return sig, nil
@@ -107,14 +112,28 @@ func NewVerifierForCosignatureV1(vkey string) (note.Verifier, error) {
 	return v, nil
 }
 
+// CoSigV1Timestamp extracts the embedded timestamp from a CoSigV1 signature.
+func CoSigV1Timestamp(s note.Signature) (time.Time, error) {
+	r, err := base64.StdEncoding.DecodeString(s.Base64)
+	if err != nil {
+		return time.UnixMilli(0), errMalformedSig
+	}
+	if len(r) != keyHashSize+timestampSize+ed25519.SignatureSize {
+		return time.UnixMilli(0), errVerifierAlg
+	}
+	r = r[keyHashSize:] // Skip the hash
+	// Next 8 bytes are the timestamp as Unix seconds-since-epoch:
+	return time.Unix(int64(binary.LittleEndian.Uint64(r)), 0), nil
+}
+
 // verifyCosigV1 returns a verify function based on key.
 func verifyCosigV1(key []byte) func(msg, sig []byte) bool {
 	return func(msg, sig []byte) bool {
-		if len(sig) != 8+ed25519.SignatureSize {
+		if len(sig) != timestampSize+ed25519.SignatureSize {
 			return false
 		}
 		t := binary.LittleEndian.Uint64(sig)
-		sig = sig[8:]
+		sig = sig[timestampSize:]
 		m, err := formatCosignatureV1(t, msg)
 		if err != nil {
 			return false
@@ -148,10 +167,11 @@ func formatCosignatureV1(t uint64, msg []byte) ([]byte, error) {
 }
 
 var (
-	errSignerID    = errors.New("malformed signer id")
-	errSignerAlg   = errors.New("unknown signer algorithm")
-	errVerifierID  = errors.New("malformed verifier id")
-	errVerifierAlg = errors.New("unknown verifier algorithm")
+	errSignerID     = errors.New("malformed signer id")
+	errSignerAlg    = errors.New("unknown signer algorithm")
+	errVerifierID   = errors.New("malformed verifier id")
+	errVerifierAlg  = errors.New("unknown verifier algorithm")
+	errMalformedSig = errors.New("malformed signature")
 )
 
 type Signer struct {
