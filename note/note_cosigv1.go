@@ -107,6 +107,20 @@ func NewVerifierForCosignatureV1(vkey string) (note.Verifier, error) {
 	return v, nil
 }
 
+// CoSigV1Timestamp extracts the embedded timestamp from a CoSigV1 signature.
+func CoSigV1Timestamp(s note.Signature) (time.Time, error) {
+	r, err := base64.StdEncoding.DecodeString(s.Base64)
+	if err != nil {
+		return time.UnixMilli(0), errMalformed
+	}
+	if len(r) != 4+8+ed25519.SignatureSize {
+		return time.UnixMilli(0), errVerifierAlg
+	}
+	r = r[4:] // Skip the hash
+	// Next 8 bytes are the timestamp as Unix seconds-since-epoch:
+	return time.Unix(int64(binary.LittleEndian.Uint64(r)), 0), nil
+}
+
 // verifyCosigV1 returns a verify function based on key.
 func verifyCosigV1(key []byte) func(msg, sig []byte) bool {
 	return func(msg, sig []byte) bool {
@@ -152,6 +166,7 @@ var (
 	errSignerAlg   = errors.New("unknown signer algorithm")
 	errVerifierID  = errors.New("malformed verifier id")
 	errVerifierAlg = errors.New("unknown verifier algorithm")
+	errMalformed   = errors.New("malformed signature")
 )
 
 type Signer struct {
