@@ -130,7 +130,7 @@ func TestRFC6962ToNote(t *testing.T) {
 				t.Fatalf("Invalid verifier: %v", err)
 			}
 
-			nRaw, err := RFC6962STHToNote(test.sth, v)
+			nRaw, err := RFC6962STHToCheckpoint(test.sth, v)
 			if gotErr := err != nil; gotErr != test.wantErr {
 				t.Fatalf("Got err %q, wantErr: %t", err, test.wantErr)
 			}

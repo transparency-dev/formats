@@ -32,6 +32,9 @@ import (
 	"golang.org/x/mod/sumdb/note"
 )
 
+// RFC6962VerifierString creates a note style verifier string for use with NewRFC6962Verifier below.
+// logURL is the root URL of the log.
+// pubK is the public key of the log.
 func RFC6962VerifierString(logURL string, pubK crypto.PublicKey) (string, error) {
 	if !isValidName(logURL) {
 		return "", errors.New("invalid name")
@@ -46,6 +49,7 @@ func RFC6962VerifierString(logURL string, pubK crypto.PublicKey) (string, error)
 	return fmt.Sprintf("%s+%08x+%s", name, hash, base64.StdEncoding.EncodeToString(append([]byte{algRFC6962STH}, pubSer...))), nil
 }
 
+// NewRFC6962Verifier creates a note verifier for Sunlight/RFC6962 checkpoint signatures.
 func NewRFC6962Verifier(vkey string) (note.Verifier, error) {
 	name, vkey, _ := strings.Cut(vkey, "+")
 	hash16, key64, _ := strings.Cut(vkey, "+")
@@ -86,7 +90,10 @@ type signedTreeHead struct {
 	LogID             []byte `json:"log_id"`              // The SHA256 hash of the log's public key
 }
 
-func RFC6962STHToNote(j []byte, v note.Verifier) ([]byte, error) {
+// RFC6962STHToCheckpoint converts the provided RFC6962 JSON representation of a SignedTreeHead structure to
+// a sunlight style signed checkpoint.
+// The passed in verifier must be an RFC6929Verifier containing the correct details for the log which signed the STH.
+func RFC6962STHToCheckpoint(j []byte, v note.Verifier) ([]byte, error) {
 	var sth signedTreeHead
 	if err := json.Unmarshal(j, &sth); err != nil {
 		return nil, err
@@ -191,6 +198,8 @@ func verifyRFC6962(key crypto.PublicKey) func(msg []byte, origin string, sig []b
 	}
 }
 
+// formatRFC6962STH uses the provided timestamp and checkpoint body to
+// recreate the RFC6962 STH structure over which the signature was made.
 func formatRFC6962STH(t uint64, msg []byte) (string, []byte, error) {
 	// Must be:
 	// origin (schema-less log root url)
