@@ -22,6 +22,7 @@ import (
 	"crypto/x509"
 	"encoding/base64"
 	"encoding/binary"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strconv"
@@ -72,6 +73,32 @@ func NewRFC6962Verifier(vkey string) (note.Verifier, error) {
 	v.v = verifyRFC6962(pubK)
 
 	return v, nil
+}
+
+// SignedTreeHead represents the structure returned by the get-sth CT method
+// after base64 decoding; see sections 3.5 and 4.3.
+type signedTreeHead struct {
+	Version           int    `json:"sth_version"`         // The version of the protocol to which the STH conforms
+	TreeSize          uint64 `json:"tree_size"`           // The number of entries in the new tree
+	Timestamp         uint64 `json:"timestamp"`           // The time at which the STH was created
+	SHA256RootHash    []byte `json:"sha256_root_hash"`    // The root hash of the log's Merkle tree
+	TreeHeadSignature []byte `json:"tree_head_signature"` // Log's signature over a TLS-encoded TreeHeadSignature
+	LogID             []byte `json:"log_id"`              // The SHA256 hash of the log's public key
+}
+
+func RFC6962STHToNote(j []byte, v note.Verifier) ([]byte, error) {
+	var sth signedTreeHead
+	if err := json.Unmarshal(j, &sth); err != nil {
+		return nil, err
+	}
+	logName := v.Name()
+	body := fmt.Sprintf("%s\n%d\n%s\n", logName, sth.TreeSize, base64.StdEncoding.EncodeToString(sth.SHA256RootHash))
+	sigBytes := binary.BigEndian.AppendUint32(nil, v.KeyHash())
+	sigBytes = binary.BigEndian.AppendUint64(sigBytes, sth.Timestamp)
+	sigBytes = append(sigBytes, sth.TreeHeadSignature...)
+	sigLine := fmt.Sprintf("\u2014 %s %s", logName, base64.StdEncoding.EncodeToString(sigBytes))
+
+	return []byte(fmt.Sprintf("%s\n%s\n", body, sigLine)), nil
 }
 
 func rfc6962Keyhash(name string, logID [32]byte) uint32 {
@@ -137,8 +164,11 @@ func verifyRFC6962(key crypto.PublicKey) func(msg []byte, origin string, sig []b
 			return false
 		}
 
-		origin, m, err := formatRFC6962STH(t, msg)
+		o, m, err := formatRFC6962STH(t, msg)
 		if err != nil {
+			return false
+		}
+		if origin != o {
 			return false
 		}
 		dgst := sha256.Sum256(m)

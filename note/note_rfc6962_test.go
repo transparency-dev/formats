@@ -17,6 +17,9 @@ package note
 import (
 	"crypto/x509"
 	"encoding/base64"
+	"encoding/json"
+	"strconv"
+	"strings"
 	"testing"
 
 	"golang.org/x/mod/sumdb/note"
@@ -104,6 +107,53 @@ func TestVerify(t *testing.T) {
 			}
 
 			t.Logf("%v", n)
+		})
+	}
+}
+
+func TestRFC6962ToNote(t *testing.T) {
+	for _, test := range []struct {
+		name     string
+		sth      []byte
+		verifier string
+		wantErr  bool
+	}{
+		{
+			name:     "works",
+			sth:      []byte(`{"tree_size":1267285836,"timestamp":1711642477482,"sha256_root_hash":"SHySaYoaGIV5oCMANTytRfUjfzXb7wvO9xQiGkDJlfQ=","tree_head_signature":"BAMARzBFAiAQWbsL/MbJdeR4jk8xYKWDBDGHyDcntBim9Jr1BvwPnAIhAMedQo0YuBo+ajNd9xyVOMvhOdVAeJYgOhBLQn8rca94"}`),
+			verifier: "ct.googleapis.com/logs/us1/argon2024+7deb49d0+BTBZMBMGByqGSM49AgEGCCqGSM49AwEHA0IABB25bKnLaZTFXOa2pgO70rjcVEMXKJkMBgFQHZ1kwFlGK9zIAx0FtC2oCfeZQe0E++VXuiYE9hFSzhRlOy92K8A=",
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			v, err := NewRFC6962Verifier(test.verifier)
+			if err != nil {
+				t.Fatalf("Invalid verifier: %v", err)
+			}
+
+			nRaw, err := RFC6962STHToNote(test.sth, v)
+			if gotErr := err != nil; gotErr != test.wantErr {
+				t.Fatalf("Got err %q, wantErr: %t", err, test.wantErr)
+			}
+			n, err := note.Open(nRaw, note.VerifierList(v))
+			if err != nil {
+				t.Fatalf("Failed to open note: %v", err)
+			}
+
+			var sth signedTreeHead
+			if err := json.Unmarshal(test.sth, &sth); err != nil {
+				t.Fatalf("Failed to parse STH json: %v", err)
+			}
+
+			lines := strings.Split(n.Text, "\n")
+			if got, want := lines[0], v.Name(); got != want {
+				t.Errorf("Got origin %q, want %q", got, want)
+			}
+			if got, want := lines[1], strconv.FormatUint(sth.TreeSize, 10); got != want {
+				t.Errorf("Got treesize %q, want %q", got, want)
+			}
+			if got, want := lines[2], base64.StdEncoding.EncodeToString(sth.SHA256RootHash); got != want {
+				t.Errorf("Got roothash %q, want %q", got, want)
+			}
 		})
 	}
 }
