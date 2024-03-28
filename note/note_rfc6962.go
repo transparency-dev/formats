@@ -150,7 +150,7 @@ func (v *rfc6962Verifer) Verify(msg, sig []byte) bool {
 	return v.v(msg, v.name, sig)
 }
 
-func verifyRFC6962(key crypto.PublicKey) func(msg []byte, origin string, sig []byte) bool {
+func verifyRFC6962(key crypto.PublicKey) func([]byte, string, []byte) bool {
 	return func(msg []byte, origin string, sig []byte) bool {
 		if len(sig) < timestampSize {
 			return false
