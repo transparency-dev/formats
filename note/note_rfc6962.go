@@ -27,6 +27,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
 
 	ct "github.com/google/certificate-transparency-go"
 	"golang.org/x/mod/sumdb/note"
@@ -110,6 +111,20 @@ func RFC6962STHToCheckpoint(j []byte, v note.Verifier) ([]byte, error) {
 		return nil, err
 	}
 	return n, nil
+}
+
+// RFC6962STHTimestamp extracts the embedded timestamp from a translated RFC6962 STH signature.
+func RFC6962STHTimestamp(s note.Signature) (time.Time, error) {
+	r, err := base64.StdEncoding.DecodeString(s.Base64)
+	if err != nil {
+		return time.UnixMilli(0), errMalformedSig
+	}
+	if len(r) <= keyHashSize+timestampSize {
+		return time.UnixMilli(0), errVerifierAlg
+	}
+	r = r[keyHashSize:] // Skip the hash
+	// Next 8 bytes are the timestamp as Unix millis-since-epoch:
+	return time.Unix(0, int64(binary.BigEndian.Uint64(r)*1000)), nil
 }
 
 func rfc6962Keyhash(name string, logID [32]byte) uint32 {

@@ -21,6 +21,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"golang.org/x/mod/sumdb/note"
 )
@@ -110,7 +111,6 @@ func TestVerify(t *testing.T) {
 			if gotErr := err != nil; gotErr != test.wantErr {
 				t.Fatalf("Got err %q, want err %t", err, test.wantErr)
 			}
-
 			t.Logf("%v", n)
 		})
 	}
@@ -172,6 +172,15 @@ func TestRFC6962STHToCheckpoint(t *testing.T) {
 			if got, want := lines[2], base64.StdEncoding.EncodeToString(sth.SHA256RootHash); got != want {
 				t.Errorf("Got roothash %q, want %q", got, want)
 			}
+
+			ts, err := RFC6962STHTimestamp(n.Sigs[0])
+			if err != nil {
+				t.Fatalf("RFC6962STHTimestamp: %v", err)
+			}
+			if got, want := ts, time.Unix(0, int64(sth.Timestamp*1000)); got != want {
+				t.Fatalf("Got %v, want %v", got, want)
+			}
+
 		})
 	}
 }
