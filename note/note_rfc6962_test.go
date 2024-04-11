@@ -93,6 +93,11 @@ func TestVerify(t *testing.T) {
 			name:     "works - rome",
 			cp:       []byte(romeCP),
 			verifier: "rome.ct.filippo.io/2024h1+78f4abae+BTBZMBMGByqGSM49AgEGCCqGSM49AwEHA0IABAFzPC3fap+uINc1RQ4eRbYMUt84+bKkA8GDLN8KwVdzAgYhYSv4kS8XSheGLAHCWhIJTJbuC3sL88bNMTtrsBM=",
+		}, {
+			name:     "invalid signature",
+			cp:       []byte("B0rked" + romeCP),
+			verifier: "rome.ct.filippo.io/2024h1+78f4abae+BTBZMBMGByqGSM49AgEGCCqGSM49AwEHA0IABAFzPC3fap+uINc1RQ4eRbYMUt84+bKkA8GDLN8KwVdzAgYhYSv4kS8XSheGLAHCWhIJTJbuC3sL88bNMTtrsBM=",
+			wantErr:  true,
 		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
