@@ -31,8 +31,6 @@ const (
 	pixelKeyMaterial = "AjBZMBMGByqGSM49AgEGCCqGSM49AwEHA0IABN+4x0Jk1yTwvLFI9A4NDdGZcX0aiWVdWM5XJVy0M4VWD3AvyW5Q6Hs9A0mcDkpUoYgn+KKPNzFC0H3nN3q6JQ8="
 	pixelKeyHash     = "91c16e30"
 	pixelKey         = "pixel6_transparency_log" + "+" + pixelKeyHash + "+" + pixelKeyMaterial
-
-	argonKey
 )
 
 func TestNewVerifier(t *testing.T) {
