@@ -105,7 +105,11 @@ func RFC6962STHToCheckpoint(j []byte, v note.Verifier) ([]byte, error) {
 	sigBytes = append(sigBytes, sth.TreeHeadSignature...)
 	sigLine := fmt.Sprintf("\u2014 %s %s", logName, base64.StdEncoding.EncodeToString(sigBytes))
 
-	return []byte(fmt.Sprintf("%s\n%s\n", body, sigLine)), nil
+	n := []byte(fmt.Sprintf("%s\n%s\n", body, sigLine))
+	if _, err := note.Open(n, note.VerifierList(v)); err != nil {
+		return nil, err
+	}
+	return n, nil
 }
 
 func rfc6962Keyhash(name string, logID [32]byte) uint32 {
@@ -168,7 +172,7 @@ func verifyRFC6962(key crypto.PublicKey) func([]byte, string, []byte) bool {
 		sigLen := binary.BigEndian.Uint16(sig)
 		sig = sig[2:] // Slice off length bytes
 
-		// All that rremains should be the signature bytes themselves, and nothing more.
+		// All that remains should be the signature bytes themselves, and nothing more.
 		if len(sig) != int(sigLen) {
 			return false
 		}
