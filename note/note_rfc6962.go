@@ -156,12 +156,19 @@ func verifyRFC6962(key crypto.PublicKey) func([]byte, string, []byte) bool {
 			return false
 		}
 		t := binary.BigEndian.Uint64(sig)
+		// slice off timestamp bytes
 		sig = sig[timestampSize:]
+
 		hAlg := sig[0]
 		sAlg := sig[1]
+		// slice off the hAlg and sAlg bytes read above
 		sig = sig[2:]
+
+		// Figure out sig bytes length
 		sigLen := binary.BigEndian.Uint16(sig)
-		sig = sig[2:]
+		sig = sig[2:] // Slice off length bytes
+
+		// All that rremains should be the signature bytes themselves, and nothing more.
 		if len(sig) != int(sigLen) {
 			return false
 		}
@@ -202,9 +209,9 @@ func verifyRFC6962(key crypto.PublicKey) func([]byte, string, []byte) bool {
 // recreate the RFC6962 STH structure over which the signature was made.
 func formatRFC6962STH(t uint64, msg []byte) (string, []byte, error) {
 	// Must be:
-	// origin (schema-less log root url)
-	// tree size (decimal)
-	// root hash (b64)
+	// origin (schema-less log root url) "\n"
+	// tree size (decimal) "\n"
+	// root hash (b64) "\n"
 	lines := strings.Split(string(msg), "\n")
 	if len(lines) != 4 {
 		return "", nil, errors.New("wrong number of lines")

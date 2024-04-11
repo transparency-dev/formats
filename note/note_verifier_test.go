@@ -31,6 +31,8 @@ const (
 	pixelKeyMaterial = "AjBZMBMGByqGSM49AgEGCCqGSM49AwEHA0IABN+4x0Jk1yTwvLFI9A4NDdGZcX0aiWVdWM5XJVy0M4VWD3AvyW5Q6Hs9A0mcDkpUoYgn+KKPNzFC0H3nN3q6JQ8="
 	pixelKeyHash     = "91c16e30"
 	pixelKey         = "pixel6_transparency_log" + "+" + pixelKeyHash + "+" + pixelKeyMaterial
+
+	argonKey
 )
 
 func TestNewVerifier(t *testing.T) {
@@ -45,6 +47,9 @@ func TestNewVerifier(t *testing.T) {
 		}, {
 			name: "ECDSA works",
 			key:  sigStoreKey,
+		}, {
+			name: "Sunlight works",
+			key:  "ct.googleapis.com/logs/us1/argon2024+7deb49d0+BTBZMBMGByqGSM49AgEGCCqGSM49AwEHA0IABB25bKnLaZTFXOa2pgO70rjcVEMXKJkMBgFQHZ1kwFlGK9zIAx0FtC2oCfeZQe0E++VXuiYE9hFSzhRlOy92K8A=",
 		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
