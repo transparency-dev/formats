@@ -47,6 +47,8 @@ func NewVerifier(key string) (note.Verifier, error) {
 		return NewECDSAVerifier(key)
 	case algEd25519CosignatureV1:
 		return NewVerifierForCosignatureV1(key)
+	case algRFC6962STH:
+		return NewRFC6962Verifier(key)
 	default:
 		return note.NewVerifier(key)
 	}
