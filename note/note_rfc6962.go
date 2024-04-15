@@ -80,7 +80,7 @@ func NewRFC6962Verifier(vkey string) (note.Verifier, error) {
 	return v, nil
 }
 
-// SignedTreeHead represents the structure returned by the get-sth CT method
+// signedTreeHead represents the structure returned by the get-sth CT method
 // after base64 decoding; see sections 3.5 and 4.3.
 type signedTreeHead struct {
 	Version           int    `json:"sth_version"`         // The version of the protocol to which the STH conforms
@@ -91,7 +91,7 @@ type signedTreeHead struct {
 	LogID             []byte `json:"log_id"`              // The SHA256 hash of the log's public key
 }
 
-// RFC6962STHToCheckpoint converts the provided RFC6962 JSON representation of a SignedTreeHead structure to
+// RFC6962STHToCheckpoint converts the provided RFC6962 JSON representation of a CT Signed Tree Head structure to
 // a sunlight style signed checkpoint.
 // The passed in verifier must be an RFC6929Verifier containing the correct details for the log which signed the STH.
 func RFC6962STHToCheckpoint(j []byte, v note.Verifier) ([]byte, error) {
@@ -140,6 +140,7 @@ func rfc6962Keyhash(name string, logID [32]byte) uint32 {
 // passed in CT log root URL.
 //
 // "For example, a log with submission prefix https://rome.ct.example.com/2024h1/ will use rome.ct.example.com/2024h1 as the checkpoint origin line"
+// (see https://github.com/C2SP/C2SP/blob/main/sunlight.md#checkpoints)
 func rfc6962LogName(logURL string) string {
 	logURL = strings.ToLower(logURL)
 	logURL = strings.TrimPrefix(logURL, "http://")
