@@ -29,7 +29,8 @@ import (
 	"strings"
 	"time"
 
-	ct "github.com/google/certificate-transparency-go"
+	//"github.com/google/certificate-transparency-go/tls"
+	tls "github.com/cisco/go-tls-syntax"
 	"golang.org/x/mod/sumdb/note"
 )
 
@@ -253,14 +254,64 @@ func formatRFC6962STH(t uint64, msg []byte) (string, []byte, error) {
 	rootHash := [32]byte{}
 	copy(rootHash[:], root)
 
-	sth := ct.SignedTreeHead{
+	sth := treeHeadSignature{
+		Version:        V1,
 		TreeSize:       size,
 		Timestamp:      t,
 		SHA256RootHash: rootHash,
 	}
-	input, err := ct.SerializeSTHSignatureInput(sth)
+	input, err := sth.Marshal()
 	if err != nil {
 		return "", nil, err
 	}
 	return lines[0], input, nil
+}
+
+// Version represents the Version enum from section 3.2:
+//
+//	enum { v1(0), (255) } Version;
+type version uint8 // tls:"maxval:255"
+
+// CT Version constants from section 3.2.
+const (
+	V1 version = 0
+)
+
+// ~ignatureType differentiates STH signatures from SCT signatures, see section 3.2.
+//
+//	enum { certificate_timestamp(0), tree_hash(1), (255) } SignatureType;
+type signatureType uint8 // tls:"maxval:255"
+
+// SignatureType constants from section 3.2.
+const (
+	treeHashSignatureType signatureType = 1
+)
+
+// sha256Hash represents the output from the SHA256 hash function.
+type sha256Hash [sha256.Size]byte
+
+// treeHeadSignature holds the data over which the signature in an STH is
+// generated; see section 3.5
+type treeHeadSignature struct {
+	Version        version       `tls:"maxval:255"`
+	SignatureType  signatureType `tls:"maxval:255"` // == TreeHashSignatureType
+	Timestamp      uint64
+	TreeSize       uint64
+	SHA256RootHash sha256Hash
+}
+
+// Marshal serializes the passed in STH into the correct
+// format for signing.
+func (s treeHeadSignature) Marshal() ([]byte, error) {
+	switch s.Version {
+	case V1:
+		if len(s.SHA256RootHash) != crypto.SHA256.Size() {
+			return nil, fmt.Errorf("invalid TreeHash length, got %d expected %d", len(s.SHA256RootHash), crypto.SHA256.Size())
+		}
+		s.SignatureType = treeHashSignatureType
+
+		return tls.Marshal(s)
+	default:
+		return nil, fmt.Errorf("unsupported STH version %d", s.Version)
+	}
 }
