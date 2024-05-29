@@ -1,7 +1,8 @@
 module github.com/transparency-dev/formats
 
-go 1.21
-toolchain go1.22.2
+go 1.21.0
+
+toolchain go1.22.3
 
 require (
 	github.com/google/certificate-transparency-go v1.2.0
