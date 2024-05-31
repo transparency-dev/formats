@@ -1,5 +1,5 @@
-github.com/google/certificate-transparency-go v1.2.0 h1:5zPN6dsOmQkJzjIzNBjB1WoHi+84Rk1MOxZhElL1wSI=
-github.com/google/certificate-transparency-go v1.2.0/go.mod h1:zeOPg1hdOZz0xyUxQcu+S48ozMdx6BXeaLMrFi9SF/Y=
+github.com/google/certificate-transparency-go v1.2.1 h1:4iW/NwzqOqYEEoCBEFP+jPbBXbLqMpq3CifMyOnDUME=
+github.com/google/certificate-transparency-go v1.2.1/go.mod h1:bvn/ytAccv+I6+DGkqpvSsEdiVGramgaSC6RD3tEmeE=
 github.com/google/go-cmp v0.6.0 h1:ofyhxvXcZhMsU5ulbFiLKl/XBFqE1GSq7atu8tAmTRI=
 github.com/google/go-cmp v0.6.0/go.mod h1:17dUlkBOakJ0+DkrSSNjCkIjxS6bF9zb3elmeNGIjoY=
 golang.org/x/crypto v0.23.0 h1:dIJU/v2J8Mdglj/8rJ6UUOM3Zc9zLZxVZwwxMooUSAI=
