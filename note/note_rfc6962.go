@@ -29,7 +29,6 @@ import (
 	"strings"
 	"time"
 
-	//"github.com/google/certificate-transparency-go/tls"
 	tls "github.com/cisco/go-tls-syntax"
 	"golang.org/x/mod/sumdb/note"
 )
