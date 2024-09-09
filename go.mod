@@ -1,8 +1,8 @@
 module github.com/transparency-dev/formats
 
-go 1.21.0
+go 1.22.0
 
-toolchain go1.22.3
+toolchain go1.22.5
 
 require (
 	github.com/cisco/go-tls-syntax v0.0.0-20200617162716-46b0cfb76b9b
