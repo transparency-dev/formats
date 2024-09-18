@@ -29,7 +29,6 @@ import (
 	"strings"
 	"time"
 
-	tls "github.com/cisco/go-tls-syntax"
 	"golang.org/x/mod/sumdb/note"
 )
 
@@ -266,37 +265,31 @@ func formatRFC6962STH(t uint64, msg []byte) (string, []byte, error) {
 	return lines[0], input, nil
 }
 
-// Version represents the Version enum from section 3.2:
-//
-//	enum { v1(0), (255) } Version;
-type version uint8 // tls:"maxval:255"
-
 // CT Version constants from section 3.2.
 const (
-	V1 version = 0
+	V1 uint8 = 0
 )
-
-// ~ignatureType differentiates STH signatures from SCT signatures, see section 3.2.
-//
-//	enum { certificate_timestamp(0), tree_hash(1), (255) } SignatureType;
-type signatureType uint8 // tls:"maxval:255"
 
 // SignatureType constants from section 3.2.
 const (
-	treeHashSignatureType signatureType = 1
+	treeHashSignatureType uint8 = 1
 )
-
-// sha256Hash represents the output from the SHA256 hash function.
-type sha256Hash [sha256.Size]byte
 
 // treeHeadSignature holds the data over which the signature in an STH is
 // generated; see section 3.5
 type treeHeadSignature struct {
-	Version        version       `tls:"maxval:255"`
-	SignatureType  signatureType `tls:"maxval:255"` // == TreeHashSignatureType
-	Timestamp      uint64
-	TreeSize       uint64
-	SHA256RootHash sha256Hash
+	// Version represents the Version enum from section 3.2:
+	//
+	//	enum { v1(0), (255) } Version;
+	Version uint8
+	// SignatureType differentiates STH signatures from SCT signatures, see section 3.2.
+	//
+	//	enum { certificate_timestamp(0), tree_hash(1), (255) } SignatureType;
+	SignatureType uint8
+	Timestamp     uint64
+	TreeSize      uint64
+	// sha256Hash represents the output from the SHA256 hash function.
+	SHA256RootHash [sha256.Size]byte
 }
 
 // Marshal serializes the passed in STH into the correct
@@ -309,7 +302,21 @@ func (s treeHeadSignature) Marshal() ([]byte, error) {
 		}
 		s.SignatureType = treeHashSignatureType
 
-		return tls.Marshal(s)
+		// This is technically TLS encoded, but since all fields are of known size it boils down to
+		// just the raw bytes.
+		b := make([]byte, 2+8+8+32)
+		i := 0
+		b[i] = byte(s.Version)
+		i++
+		b[i] = byte(treeHashSignatureType)
+		i++
+		binary.BigEndian.PutUint64(b[i:], s.Timestamp)
+		i += 8
+		binary.BigEndian.PutUint64(b[i:], s.TreeSize)
+		i += 8
+		copy(b[i:], s.SHA256RootHash[:])
+
+		return b, nil
 	default:
 		return nil, fmt.Errorf("unsupported STH version %d", s.Version)
 	}
