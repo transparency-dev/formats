@@ -70,7 +70,7 @@ func NewSignerForCosignatureV1(skey string) (*Signer, error) {
 
 			// The signature itself is encoded as timestamp || signature.
 			sig := make([]byte, 0, timestampSize+ed25519.SignatureSize)
-			sig = binary.LittleEndian.AppendUint64(sig, t)
+			sig = binary.BigEndian.AppendUint64(sig, t)
 			sig = append(sig, ed25519.Sign(key, m)...)
 			return sig, nil
 		}
@@ -124,7 +124,7 @@ func CoSigV1Timestamp(s note.Signature) (time.Time, error) {
 	}
 	r = r[keyHashSize:] // Skip the hash
 	// Next 8 bytes are the timestamp as Unix seconds-since-epoch:
-	return time.Unix(int64(binary.LittleEndian.Uint64(r)), 0), nil
+	return time.Unix(int64(binary.BigEndian.Uint64(r)), 0), nil
 }
 
 // verifyCosigV1 returns a verify function based on key.
@@ -133,7 +133,7 @@ func verifyCosigV1(key []byte) func(msg, sig []byte) bool {
 		if len(sig) != timestampSize+ed25519.SignatureSize {
 			return false
 		}
-		t := binary.LittleEndian.Uint64(sig)
+		t := binary.BigEndian.Uint64(sig)
 		sig = sig[timestampSize:]
 		m, err := formatCosignatureV1(t, msg)
 		if err != nil {

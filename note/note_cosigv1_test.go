@@ -154,8 +154,8 @@ func TestCoSigV1Timestamp(t *testing.T) {
 	}{
 		{
 			name:     "works",
-			sig:      note.Signature{Base64: "W+8PSVYlTmUAAAAAOUcMpZzRiZaiZRr94NylbaFKHqXu5KQbk70RPuCZVi3PkU8GZJpCQYgyqjnmuSRCShglqdlUZGUplgn7ECavCA=="},
-			wantTime: time.Unix(1699620182, 0),
+			sig:      note.Signature{Base64: "ZGhGuQAAAABm/qTPeyKXD+R2rzyQsxPiP8mXum7qq/iF0u4vanlqJyocWODBt97w9uL+8qT7S5gxEHWWOworDcFiEBYJXORmnFBOBA=="},
+			wantTime: time.Unix(1727964367, 0),
 		}, {
 			name:    "wrong type of signature",
 			sig:     note.Signature{Base64: "eQjRQm6eSKzFoiYalgwCPXu2y3ijtg68is9M46JKxuZB+dRfTmeQeDBoXnvxZx2ugnkyV+MUMLXpWs1hPb/W/4xkNQY="},
