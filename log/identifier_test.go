@@ -51,6 +51,11 @@ func TestID(t *testing.T) {
 			origin: "rekor.sigstore.dev - 3904496407287907110",
 			want:   "c43a5887c927e0594e0a5feb87c2311ec86c3367613001b40dec552473aaa5dc",
 		},
+		{
+			desc:   "sigsum",
+			origin: "sigsum.org/v1/tree/44ad38f8226ff9bd27629a41e55df727308d0a1cd8a2c31d3170048ac1dd22a1",
+			want:   "e5a19e2a99bc3fe4968b64bedaf64e43a9888e485320746cc46ade52ea33a328",
+		},
 	} {
 		t.Run(test.desc, func(t *testing.T) {
 			if got, want := log.ID(test.origin), test.want; got != want {
