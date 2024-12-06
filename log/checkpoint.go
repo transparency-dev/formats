@@ -26,7 +26,7 @@ import (
 
 // Checkpoint represents a minimal log checkpoint (STH).
 type Checkpoint struct {
-	// Origin is the string identifing the log which issued this checkpoint.
+	// Origin is the string identifying the log which issued this checkpoint.
 	Origin string
 	// Size is the number of entries in the log at this checkpoint.
 	Size uint64
