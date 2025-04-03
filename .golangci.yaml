@@ -11,14 +11,6 @@ linters:
       min-complexity: 25
   exclusions:
     generated: lax
-    paths:
-      - third_party$
-      - builtin$
-      - examples$
 formatters:
   exclusions:
     generated: lax
-    paths:
-      - third_party$
-      - builtin$
-      - examples$
