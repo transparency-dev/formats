@@ -30,10 +30,10 @@ import (
 	"golang.org/x/mod/sumdb/note"
 )
 
-// SignerVerifierFromEd25519Key returns a note Signer and Verifier given an
+// NewEd25519SignerVerifier returns a note Signer and Verifier given an
 // Ed25519 private key in the standard note-formatted form, e.g.
 // `PRIVATE+KEY+logandmap+38581672+AXJ0FKWOcO2ch6WC8kP705Ed3Gxu7pVtZLhfHAQwp+FE`.
-func SignerVerifierFromEd25519Key(skey string) (note.Signer, note.Verifier, error) {
+func NewEd25519SignerVerifier(skey string) (note.Signer, note.Verifier, error) {
 	const algEd25519 = 1
 	s, err := note.NewSigner(skey)
 	if err != nil {
@@ -52,27 +52,23 @@ func SignerVerifierFromEd25519Key(skey string) (note.Signer, note.Verifier, erro
 	}
 
 	alg, key := key[0], key[1:]
-	switch alg {
-	default:
+	if alg != algEd25519 {
 		return nil, nil, errors.New("unsupported algorithm")
-
-	case algEd25519:
-		if len(key) != ed25519.SeedSize {
-			return nil, nil, fmt.Errorf("expected key seed of size %d but got %d", ed25519.SeedSize, len(key))
-		}
-		key := ed25519.NewKeyFromSeed(key)
-		publicKey := key.Public().(ed25519.PublicKey)
-		vkey, err := note.NewEd25519VerifierKey(s.Name(), publicKey)
-		if err != nil {
-			return nil, nil, fmt.Errorf("failed to generate verifier from key: %v", err)
-
-		}
-		v, err := note.NewVerifier(vkey)
-		if err != nil {
-			return nil, nil, fmt.Errorf("failed to create verifier from vkey: %v", err)
-		}
-		return s, v, err
 	}
+	if l := len(key); l != ed25519.SeedSize {
+		return nil, nil, fmt.Errorf("expected key seed of size %d but got %d", ed25519.SeedSize, l)
+	}
+	publicKey := ed25519.NewKeyFromSeed(key).Public().(ed25519.PublicKey)
+	vkey, err := note.NewEd25519VerifierKey(s.Name(), publicKey)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to generate verifier from key: %v", err)
+
+	}
+	v, err := note.NewVerifier(vkey)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to create verifier from vkey: %v", err)
+	}
+	return s, v, err
 }
 
 // NewVerifier returns a verifier for the given key, if the key's algo is known.

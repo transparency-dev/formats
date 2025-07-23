@@ -50,7 +50,7 @@ func TestSignerVerifierFromEd25519Key(t *testing.T) {
 		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			s, v, err := SignerVerifierFromEd25519Key(test.key)
+			s, v, err := NewEd25519SignerVerifier(test.key)
 			if gotErr := err != nil; gotErr != test.wantErr {
 				t.Fatalf("NewVerifier: %v, wantErr %t", err, test.wantErr)
 			}
