@@ -17,16 +17,59 @@ package note
 
 import (
 	"crypto/ecdsa"
+	"crypto/ed25519"
 	"crypto/sha256"
 	"crypto/x509"
 	"encoding/base64"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
 
 	"golang.org/x/mod/sumdb/note"
 )
+
+// NewEd25519SignerVerifier returns a note Signer and Verifier given an
+// Ed25519 private key in the standard note-formatted form, e.g.
+// `PRIVATE+KEY+logandmap+38581672+AXJ0FKWOcO2ch6WC8kP705Ed3Gxu7pVtZLhfHAQwp+FE`.
+func NewEd25519SignerVerifier(skey string) (note.Signer, note.Verifier, error) {
+	const algEd25519 = 1
+	s, err := note.NewSigner(skey)
+	if err != nil {
+		return nil, nil, err
+	}
+	parts := strings.SplitN(skey, "+", 5)
+	if n := len(parts); n != 5 {
+		return nil, nil, fmt.Errorf("expected 5 parts but got %d", n)
+	}
+	if parts[0] != "PRIVATE" || parts[1] != "KEY" {
+		return nil, nil, fmt.Errorf("expected first tokens to be [PRIVATE, KEY]")
+	}
+	key, err := base64.StdEncoding.DecodeString(parts[4])
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to decode base64: %v", err)
+	}
+
+	alg, key := key[0], key[1:]
+	if alg != algEd25519 {
+		return nil, nil, errors.New("unsupported algorithm")
+	}
+	if l := len(key); l != ed25519.SeedSize {
+		return nil, nil, fmt.Errorf("expected key seed of size %d but got %d", ed25519.SeedSize, l)
+	}
+	publicKey := ed25519.NewKeyFromSeed(key).Public().(ed25519.PublicKey)
+	vkey, err := note.NewEd25519VerifierKey(s.Name(), publicKey)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to generate verifier from key: %v", err)
+
+	}
+	v, err := note.NewVerifier(vkey)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to create verifier from vkey: %v", err)
+	}
+	return s, v, err
+}
 
 // NewVerifier returns a verifier for the given key, if the key's algo is known.
 func NewVerifier(key string) (note.Verifier, error) {

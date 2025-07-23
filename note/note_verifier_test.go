@@ -33,6 +33,42 @@ const (
 	pixelKey         = "pixel6_transparency_log" + "+" + pixelKeyHash + "+" + pixelKeyMaterial
 )
 
+func TestSignerVerifierFromEd25519Key(t *testing.T) {
+	for _, test := range []struct {
+		name    string
+		key     string
+		wantErr bool
+	}{
+		{
+			name: "Ed25519 private key",
+			key:  "PRIVATE+KEY+logandmap+38581672+AXJ0FKWOcO2ch6WC8kP705Ed3Gxu7pVtZLhfHAQwp+FE",
+		},
+		{
+			name:    "Ed25519 public key",
+			key:     "logandmap+38581672+Ab/PCr1eCclRPRMBqw/r5An1xO71MCnImLiospEq6b4l",
+			wantErr: true,
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			s, v, err := NewEd25519SignerVerifier(test.key)
+			if gotErr := err != nil; gotErr != test.wantErr {
+				t.Fatalf("NewVerifier: %v, wantErr %t", err, test.wantErr)
+			}
+			if test.wantErr {
+				return
+			}
+			msg := []byte("hello")
+			sig, err := s.Sign(msg)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !v.Verify(msg, sig) {
+				t.Fatal("Failed to verify signature from signer")
+			}
+		})
+	}
+}
+
 func TestNewVerifier(t *testing.T) {
 	for _, test := range []struct {
 		name    string
