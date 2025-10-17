@@ -112,8 +112,11 @@ func TestCoSigV1NewVerifier(t *testing.T) {
 		wantErr bool
 	}{
 		{
-			name: "works",
+			name: "works: convert from algEd25519",
 			pubK: "TEST+7997405c+AQcC+FTVKf0jlTdHDY3rbevmnKxxPjigCXlVtGe6RIr6",
+		}, {
+			name: "works: native algEd25519CosignatureV1 verifier",
+			pubK: "remora.n621.de+da77ade7+BOvN63jn/bLvkieywe8R6UYAtVtNbZpXh34x7onlmtw2",
 		}, {
 			name:    "wrong number of parts",
 			pubK:    "bananas.sigstore.dev+12344556",
@@ -177,5 +180,47 @@ func TestCoSigV1Timestamp(t *testing.T) {
 				t.Fatalf("got time %v, want %v", gotTime.UnixMilli(), test.wantTime.UnixMilli())
 			}
 		})
+	}
+}
+
+func TestVKeyToCosignatureV1(t *testing.T) {
+	skey, vkey, err := note.GenerateKey(rand.Reader, "TestKey")
+	if err != nil {
+		t.Fatalf("Failed to generate keys: %v", err)
+	}
+	cosigner, err := NewSignerForCosignatureV1(skey)
+	if err != nil {
+		t.Fatalf("Failed to create cosignerv1: %v", err)
+	}
+	covkey, err :=	VKeyToCosignatureV1(vkey)
+	if err != nil {
+		t.Fatalf("Failed to convert vkey to cosigv1 verifier: %v", err)
+	}
+	workingVKeys := []string{
+		vkey,
+		covkey,
+	}
+	n, err := note.Sign(&note.Note{Text: "Note\n\n"}, cosigner)
+	if err != nil {
+		t.Fatalf("Failed to sign note: %v", err)
+	}
+	for _, k := range workingVKeys {
+		coverifier, err := NewVerifierForCosignatureV1(k)
+		if err != nil {
+			t.Errorf("Failed to create verifier from %q: %v", k, err)
+			continue
+		}
+		if _, err = note.Open(n, note.VerifierList(coverifier)); err != nil {
+			t.Errorf("Failed to open note with verifier %q: %v", k, err)
+		}
+	}
+
+	v, err := note.NewVerifier(vkey)
+	if err != nil {
+		t.Fatalf("Failed to create standard verifier: %v", err)
+	}
+	// Now check that the standard vkey cannot open a cosig signature.
+	if _, err = note.Open(n, note.VerifierList(v)); err == nil {
+			t.Errorf("Expected error trying to open cosigned note with standard vkey, but got success")
 	}
 }
