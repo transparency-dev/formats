@@ -19,7 +19,7 @@ import (
 	"testing"
 )
 
-func TestNewWitnessGroupFromPolicy(t *testing.T) {
+func TestParsePolicy(t *testing.T) {
 	for _, test := range []struct {
 		name   string
 		policy string
@@ -50,9 +50,9 @@ group      g1    all     w1  w2
 	} {
 		t.Run(test.name, func(t *testing.T) {
 
-			wg, err := NewWitnessGroupFromPolicy([]byte(test.policy))
+			wg, err := ParsePolicy([]byte(test.policy))
 			if err != nil {
-				t.Fatalf("NewWitnessGroupFromPolicy() failed: %v", err)
+				t.Fatalf("ParsePolicy() failed: %v", err)
 			}
 
 			if wg.N != 2 {
@@ -65,7 +65,7 @@ group      g1    all     w1  w2
 	}
 }
 
-func TestNewWitnessGroupFromPolicy_GroupN(t *testing.T) {
+func TestParsePolicy_GroupN(t *testing.T) {
 	testCases := []struct {
 		desc   string
 		policy string
@@ -109,9 +109,9 @@ quorum g1
 
 	for _, tc := range testCases {
 		t.Run(tc.desc, func(t *testing.T) {
-			wg, err := NewWitnessGroupFromPolicy([]byte(tc.policy))
+			wg, err := ParsePolicy([]byte(tc.policy))
 			if err != nil {
-				t.Fatalf("NewWitnessGroupFromPolicy() failed: %v", err)
+				t.Fatalf("ParsePolicy() failed: %v", err)
 			}
 			if wg.N != tc.wantN {
 				t.Errorf("wg.N = %d, want %d", wg.N, tc.wantN)
@@ -120,7 +120,7 @@ quorum g1
 	}
 }
 
-func TestNewWitnessGroupFromPolicy_Errors(t *testing.T) {
+func TestParsePolicy_Errors(t *testing.T) {
 	testCases := []struct {
 		desc   string
 		policy string
@@ -164,7 +164,7 @@ func TestNewWitnessGroupFromPolicy_Errors(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.desc, func(t *testing.T) {
-			_, err := NewWitnessGroupFromPolicy([]byte(tc.policy))
+			_, err := ParsePolicy([]byte(tc.policy))
 			if err == nil {
 				t.Fatal("Expected error, got nil")
 			}

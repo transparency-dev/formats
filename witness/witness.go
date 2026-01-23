@@ -42,14 +42,13 @@ type policyComponent interface {
 	Endpoints() map[string]note.Verifier
 }
 
-// NewWitnessGroupFromPolicy creates a graph of witness objects that represents the
-// policy provided, and which can be passed directly to the WithWitnesses
-// appender lifecycle option.
+// ParsePolicy creates a graph of witness objects that represents the
+// policy provided.
 //
 // The policy structure is as described by [Sigsum's policy format](https://git.glasklar.is/sigsum/core/sigsum-go/-/blob/main/doc/policy.md)
 // but with the difference that the configured witness keys MUST be signature type `0x04` `vkey`s as specified
 // by C2SP [signed-note](https://github.com/C2SP/C2SP/blob/main/signed-note.md#verifier-keys).
-func NewWitnessGroupFromPolicy(p []byte) (WitnessGroup, error) {
+func ParsePolicy(p []byte) (Group, error) {
 	scanner := bufio.NewScanner(bytes.NewBuffer(p))
 	components := make(map[string]policyComponent)
 
@@ -72,35 +71,35 @@ func NewWitnessGroupFromPolicy(p []byte) (WitnessGroup, error) {
 			// Given this function is parsing to create the graph structure which will be used by a Tessera log to witness
 			// new checkpoints we'll ignore that special case here.
 			if len(fields) != 4 {
-				return WitnessGroup{}, fmt.Errorf("invalid witness definition: %q", line)
+				return Group{}, fmt.Errorf("invalid witness definition: %q", line)
 			}
 			name, vkey, witnessURLStr := fields[1], fields[2], fields[3]
 			if isBadName(name) {
-				return WitnessGroup{}, fmt.Errorf("invalid witness name %q", name)
+				return Group{}, fmt.Errorf("invalid witness name %q", name)
 			}
 			if _, ok := components[name]; ok {
-				return WitnessGroup{}, fmt.Errorf("duplicate component name: %q", name)
+				return Group{}, fmt.Errorf("duplicate component name: %q", name)
 			}
 			witnessURL, err := url.Parse(witnessURLStr)
 			if err != nil {
-				return WitnessGroup{}, fmt.Errorf("invalid witness URL %q: %w", witnessURLStr, err)
+				return Group{}, fmt.Errorf("invalid witness URL %q: %w", witnessURLStr, err)
 			}
-			w, err := NewWitness(vkey, witnessURL)
+			w, err := New(vkey, witnessURL)
 			if err != nil {
-				return WitnessGroup{}, fmt.Errorf("invalid witness config %q: %w", line, err)
+				return Group{}, fmt.Errorf("invalid witness config %q: %w", line, err)
 			}
 			components[name] = w
 		case "group":
 			if len(fields) < 3 {
-				return WitnessGroup{}, fmt.Errorf("invalid group definition: %q", line)
+				return Group{}, fmt.Errorf("invalid group definition: %q", line)
 			}
 
 			name, N, childrenNames := fields[1], fields[2], fields[3:]
 			if isBadName(name) {
-				return WitnessGroup{}, fmt.Errorf("invalid group name %q", name)
+				return Group{}, fmt.Errorf("invalid group name %q", name)
 			}
 			if _, ok := components[name]; ok {
-				return WitnessGroup{}, fmt.Errorf("duplicate component name: %q", name)
+				return Group{}, fmt.Errorf("duplicate component name: %q", name)
 			}
 			var n int
 			switch N {
@@ -111,57 +110,57 @@ func NewWitnessGroupFromPolicy(p []byte) (WitnessGroup, error) {
 			default:
 				i, err := strconv.ParseUint(N, 10, 8)
 				if err != nil {
-					return WitnessGroup{}, fmt.Errorf("invalid threshold %q for group %q: %w", N, name, err)
+					return Group{}, fmt.Errorf("invalid threshold %q for group %q: %w", N, name, err)
 				}
 				n = int(i)
 			}
 			if c := len(childrenNames); n > c {
-				return WitnessGroup{}, fmt.Errorf("group with %d children cannot have threshold %d", c, n)
+				return Group{}, fmt.Errorf("group with %d children cannot have threshold %d", c, n)
 			}
 
 			children := make([]policyComponent, len(childrenNames))
 			for i, cName := range childrenNames {
 				if isBadName(cName) {
-					return WitnessGroup{}, fmt.Errorf("invalid component name %q", cName)
+					return Group{}, fmt.Errorf("invalid component name %q", cName)
 				}
 				child, ok := components[cName]
 				if !ok {
-					return WitnessGroup{}, fmt.Errorf("unknown component %q in group definition", cName)
+					return Group{}, fmt.Errorf("unknown component %q in group definition", cName)
 				}
 				children[i] = child
 			}
-			wg := NewWitnessGroup(n, children...)
+			wg := NewGroup(n, children...)
 			components[name] = wg
 		case "quorum":
 			if len(fields) != 2 {
-				return WitnessGroup{}, fmt.Errorf("invalid quorum definition: %q", line)
+				return Group{}, fmt.Errorf("invalid quorum definition: %q", line)
 			}
 			quorumName = fields[1]
 		default:
-			return WitnessGroup{}, fmt.Errorf("unknown keyword: %q", fields[0])
+			return Group{}, fmt.Errorf("unknown keyword: %q", fields[0])
 		}
 	}
 	if err := scanner.Err(); err != nil {
-		return WitnessGroup{}, err
+		return Group{}, err
 	}
 
 	switch quorumName {
 	case "":
-		return WitnessGroup{}, fmt.Errorf("policy file must define a quorum")
+		return Group{}, fmt.Errorf("policy file must define a quorum")
 	case "none":
-		return NewWitnessGroup(0), nil
+		return NewGroup(0), nil
 	default:
 		if isBadName(quorumName) {
-			return WitnessGroup{}, fmt.Errorf("invalid quorum name %q", quorumName)
+			return Group{}, fmt.Errorf("invalid quorum name %q", quorumName)
 		}
 		policy, ok := components[quorumName]
 		if !ok {
-			return WitnessGroup{}, fmt.Errorf("quorum component %q not found", quorumName)
+			return Group{}, fmt.Errorf("quorum component %q not found", quorumName)
 		}
-		wg, ok := policy.(WitnessGroup)
+		wg, ok := policy.(Group)
 		if !ok {
 			// A single witness can be a policy. Wrap it in a group.
-			return NewWitnessGroup(1, policy), nil
+			return NewGroup(1, policy), nil
 		}
 		return wg, nil
 	}
@@ -182,9 +181,9 @@ func isBadName(n string) bool {
 	return isKeyword
 }
 
-// NewWitness returns a Witness given a verifier key and the root URL for where this
+// New returns a Witness given a verifier key and the root URL for where this
 // witness can be reached.
-func NewWitness(vkey string, witnessRoot *url.URL) (Witness, error) {
+func New(vkey string, witnessRoot *url.URL) (Witness, error) {
 	v, err := f_note.NewVerifierForCosignatureV1(vkey)
 	if err != nil {
 		return Witness{}, err
@@ -226,29 +225,29 @@ func (w Witness) Endpoints() map[string]note.Verifier {
 	return map[string]note.Verifier{w.URL: w.Key}
 }
 
-// NewWitnessGroup creates a grouping of Witness or WitnessGroup with a configurable threshold
+// NewGroup creates a grouping of Witness or WitnessGroup with a configurable threshold
 // of these sub-components that need to be satisfied in order for this group to be satisfied.
 //
 // The threshold should only be set to less than the number of sub-components if these are
 // considered fungible.
-func NewWitnessGroup(n int, children ...policyComponent) WitnessGroup {
+func NewGroup(n int, children ...policyComponent) Group {
 	if n < 0 || n > len(children) {
 		panic(fmt.Errorf("threshold of %d outside bounds for children %s", n, children))
 	}
-	return WitnessGroup{
+	return Group{
 		Components: children,
 		N:          n,
 	}
 }
 
-// WitnessGroup defines a group of witnesses, and a threshold of
+// Group defines a group of witnesses, and a threshold of
 // signatures that must be met for this group to be satisfied.
 // Witnesses within a group should be fungible, e.g. all of the Armored
 // Witness devices form a logical group, and N should be picked to
 // represent a threshold of the quorum. For some users this will be a
 // simple majority, but other strategies are available.
 // N must be <= len(WitnessKeys).
-type WitnessGroup struct {
+type Group struct {
 	Components []policyComponent
 	N          int
 }
@@ -263,7 +262,7 @@ type WitnessGroup struct {
 // checkpoint, which is O(N). If this is called every time a witness returns a
 // checkpoint then this algorithm is O(N^2). To support large N, this may require
 // some rewriting in order to maintain performance.
-func (wg WitnessGroup) Satisfied(cp []byte) bool {
+func (wg Group) Satisfied(cp []byte) bool {
 	if wg.N <= 0 {
 		return true
 	}
@@ -283,7 +282,7 @@ func (wg WitnessGroup) Satisfied(cp []byte) bool {
 // response. The returned result is a map from the URL that should be used to update
 // the witness with a new checkpoint, to the value which is the verifier to check
 // the response is well formed.
-func (wg WitnessGroup) Endpoints() map[string]note.Verifier {
+func (wg Group) Endpoints() map[string]note.Verifier {
 	endpoints := make(map[string]note.Verifier)
 	for _, c := range wg.Components {
 		maps.Copy(endpoints, c.Endpoints())
