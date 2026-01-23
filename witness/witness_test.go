@@ -35,16 +35,16 @@ const (
 var (
 	bastion, _   = url.Parse("https://b1.example.com/")
 	directURL, _ = url.Parse("https://witness.example.com/")
-	wit1, _      = NewWitness(wit1_vkey, bastion.JoinPath("wit1prefix"))
-	wit2, _      = NewWitness(wit2_vkey, bastion.JoinPath("wit2prefix"))
-	wit3, _      = NewWitness(wit3_vkey, directURL)
+	wit1, _      = New(wit1_vkey, bastion.JoinPath("wit1prefix"))
+	wit2, _      = New(wit2_vkey, bastion.JoinPath("wit2prefix"))
+	wit3, _      = New(wit3_vkey, directURL)
 	wit1Sign, _  = f_note.NewSignerForCosignatureV1(wit1_skey)
 	wit2Sign, _  = f_note.NewSignerForCosignatureV1(wit2_skey)
 	wit3Sign, _  = f_note.NewSignerForCosignatureV1(wit3_skey)
 )
 
-func TestWitnessGroup_Empty(t *testing.T) {
-	group := WitnessGroup{}
+func TestGroup_Empty(t *testing.T) {
+	group := Group{}
 	if !group.Satisfied([]byte("definitely a checkpoint\n")) {
 		t.Error("empty group should be satisfied")
 	}
@@ -53,82 +53,82 @@ func TestWitnessGroup_Empty(t *testing.T) {
 	}
 }
 
-func TestWitnessGroup_Satisfied(t *testing.T) {
+func TestGroup_Satisfied(t *testing.T) {
 	testCases := []struct {
 		desc            string
-		group           WitnessGroup
+		group           Group
 		signers         []note.Signer
 		expectSatisfied bool
 	}{
 		{
 			desc:            "One witness, required and provided",
-			group:           NewWitnessGroup(1, wit1),
+			group:           NewGroup(1, wit1),
 			signers:         []note.Signer{wit1Sign},
 			expectSatisfied: true,
 		},
 		{
 			desc:            "One witness, required and not provided",
-			group:           NewWitnessGroup(1, wit1),
+			group:           NewGroup(1, wit1),
 			signers:         []note.Signer{},
 			expectSatisfied: false,
 		},
 		{
 			desc:            "One witness, optional and provided",
-			group:           NewWitnessGroup(0, wit1),
+			group:           NewGroup(0, wit1),
 			signers:         []note.Signer{wit1Sign},
 			expectSatisfied: true,
 		},
 		{
 			desc:            "One witness, optional and not provided",
-			group:           NewWitnessGroup(0, wit1),
+			group:           NewGroup(0, wit1),
 			signers:         []note.Signer{},
 			expectSatisfied: true,
 		},
 		{
 			desc:            "One witness, required and provided, in required subgroup",
-			group:           NewWitnessGroup(1, NewWitnessGroup(1, wit1)),
+			group:           NewGroup(1, NewGroup(1, wit1)),
 			signers:         []note.Signer{wit1Sign},
 			expectSatisfied: true,
 		},
 		{
 			desc:            "One witness, required and provided, in optional subgroup",
-			group:           NewWitnessGroup(0, NewWitnessGroup(1, wit1)),
+			group:           NewGroup(0, NewGroup(1, wit1)),
 			signers:         []note.Signer{wit1Sign},
 			expectSatisfied: true,
 		},
 		{
 			desc:            "One witness, required and not provided, in required subgroup",
-			group:           NewWitnessGroup(1, NewWitnessGroup(1, wit1)),
+			group:           NewGroup(1, NewGroup(1, wit1)),
 			signers:         []note.Signer{},
 			expectSatisfied: false,
 		},
 		{
 			desc:            "One witness, required and not provided, in optional subgroup",
-			group:           NewWitnessGroup(0, NewWitnessGroup(1, wit1)),
+			group:           NewGroup(0, NewGroup(1, wit1)),
 			signers:         []note.Signer{},
 			expectSatisfied: true,
 		},
 		{
 			desc:            "One required, one of two required, all provided",
-			group:           NewWitnessGroup(2, wit1, NewWitnessGroup(1, wit2, wit3)),
+			group:           NewGroup(2, wit1, NewGroup(1, wit2, wit3)),
 			signers:         []note.Signer{wit1Sign, wit2Sign, wit3Sign},
 			expectSatisfied: true,
 		},
 		{
 			desc:            "One required, one of two required, min provided",
-			group:           NewWitnessGroup(2, wit1, NewWitnessGroup(1, wit2, wit3)),
+			group:           NewGroup(2, wit1, NewGroup(1, wit2, wit3)),
 			signers:         []note.Signer{wit1Sign, wit2Sign},
 			expectSatisfied: true,
 		},
 		{
 			desc:            "One required, one of two required, only first group satisfied",
-			group:           NewWitnessGroup(2, wit1, NewWitnessGroup(1, wit2, wit3)),
+			group:           NewGroup(2, wit1, NewGroup(1, wit2, wit3)),
 			signers:         []note.Signer{wit1Sign},
 			expectSatisfied: false,
 		},
 		{
 			desc:            "One required, one of two required, only second group satisfied",
-			group:           NewWitnessGroup(2, wit1, NewWitnessGroup(1, wit2, wit3)),
+			group:           NewGroup(2, wit1, NewGroup(1, wit2, wit3)),
 			signers:         []note.Signer{wit2Sign, wit3Sign},
 			expectSatisfied: false,
 		},
@@ -150,30 +150,30 @@ func TestWitnessGroup_Satisfied(t *testing.T) {
 	}
 }
 
-func TestWitnessGroup_URLs(t *testing.T) {
+func TestGroup_URLs(t *testing.T) {
 	testCases := []struct {
 		desc         string
-		group        WitnessGroup
+		group        Group
 		expectedURLs []string
 	}{
 		{
 			desc:         "witness 1",
-			group:        NewWitnessGroup(1, wit1),
+			group:        NewGroup(1, wit1),
 			expectedURLs: []string{"https://b1.example.com/wit1prefix/add-checkpoint"},
 		},
 		{
 			desc:         "witness 2",
-			group:        NewWitnessGroup(1, wit2),
+			group:        NewGroup(1, wit2),
 			expectedURLs: []string{"https://b1.example.com/wit2prefix/add-checkpoint"},
 		},
 		{
 			desc:         "witness 3",
-			group:        NewWitnessGroup(1, wit3),
+			group:        NewGroup(1, wit3),
 			expectedURLs: []string{"https://witness.example.com/add-checkpoint"},
 		},
 		{
 			desc:  "all witnesses in one group",
-			group: NewWitnessGroup(1, wit1, wit2, wit3),
+			group: NewGroup(1, wit1, wit2, wit3),
 			expectedURLs: []string{
 				"https://b1.example.com/wit1prefix/add-checkpoint",
 				"https://b1.example.com/wit2prefix/add-checkpoint",
@@ -182,7 +182,7 @@ func TestWitnessGroup_URLs(t *testing.T) {
 		},
 		{
 			desc:  "all witnesses with duplicates in nests",
-			group: NewWitnessGroup(2, NewWitnessGroup(1, wit1, wit2), NewWitnessGroup(1, wit1, wit3)),
+			group: NewGroup(2, NewGroup(1, wit1, wit2), NewGroup(1, wit1, wit3)),
 			expectedURLs: []string{
 				"https://b1.example.com/wit1prefix/add-checkpoint",
 				"https://b1.example.com/wit2prefix/add-checkpoint",
@@ -208,8 +208,8 @@ func TestWitnessGroup_URLs(t *testing.T) {
 
 // This is benchmarked because this may well get called a number of times, and there are potentially
 // other ways to implement this that don't involve so many note.Open calls.
-func BenchmarkWitnessGroupSatisfaction(b *testing.B) {
-	group := NewWitnessGroup(2, wit1, NewWitnessGroup(1, wit2, wit3))
+func BenchmarkGroupSatisfaction(b *testing.B) {
+	group := NewGroup(2, wit1, NewGroup(1, wit2, wit3))
 	n := &note.Note{
 		// Text must contain 3 lines to meet cosig expectations.
 		Text: "sign me\nI'm a\nnote\n",
