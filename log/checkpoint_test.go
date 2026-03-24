@@ -172,7 +172,7 @@ type moonLogCheckpoint struct {
 func (m moonLogCheckpoint) Marshal() []byte {
 	b := bytes.Buffer{}
 	b.Write(m.Checkpoint.Marshal())
-	b.WriteString(fmt.Sprintf("%x\n%s\n", m.Timestamp, m.Phase))
+	fmt.Fprintf(&b, "%x\n%s\n", m.Timestamp, m.Phase)
 	return b.Bytes()
 }
 
