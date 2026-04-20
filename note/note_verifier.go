@@ -88,7 +88,7 @@ func NewVerifier(key string) (note.Verifier, error) {
 	switch keyBytes[0] {
 	case algECDSAWithSHA256:
 		return NewECDSAVerifier(key)
-	case algEd25519CosignatureV1:
+	case algEd25519CosignatureV1, algMLDSA44:
 		return NewVerifierForCosignatureV1(key)
 	case algRFC6962STH:
 		return NewRFC6962Verifier(key)
