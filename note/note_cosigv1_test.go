@@ -6,22 +6,80 @@ package note
 
 import (
 	"crypto/rand"
+	"encoding/base64"
+	"fmt"
 	"testing"
 	"time"
 
+	"filippo.io/mldsa"
 	"golang.org/x/mod/sumdb/note"
 )
 
 func TestSignerRoundtrip(t *testing.T) {
-	skey, _, err := note.GenerateKey(rand.Reader, "test")
-	if err != nil {
-		t.Fatal(err)
-	}
+	edSk, _ := mustGenerateEd25519Key(t, "ed25519")
+	mlSk, _ := mustGenerateMLDSAKey(t, "mldsa")
 
-	s, err := NewSignerForCosignatureV1(skey)
-	if err != nil {
-		t.Fatal(err)
+	for _, test := range []struct {
+		name string
+		skey string
+	}{
+		{
+			name:"ed25519", 
+			skey: edSk,
+		},
+		{
+			name: "mldsa", 
+			skey: mlSk,
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			s, err := NewSignerForCosignatureV1(test.skey)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			msg := "test\n123\nf+7CoKgXKE/tNys9TTXcr/ad6U/K3xvznmzew9y6SP0=\n"
+			n, err := note.Sign(&note.Note{Text: msg}, s)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			if _, err := note.Open(n, note.VerifierList(s.Verifier())); err != nil {
+				t.Fatal(err)
+			}
+		})
 	}
+}
+
+func TestMLDSASignerVerifierRoundtrip(t *testing.T) {
+	edSk, edPk := mustGenerateEd25519Key(t, "ed25519")
+	mlSk, mlPk := mustGenerateMLDSAKey(t, "mldsa")
+	for _, test := range []struct {
+		name string
+		skey string
+		vkey string
+	}{
+		{
+			name:"ed25519", 
+			skey: edSk,
+			vkey: edPk,
+		},
+		{
+			name: "mldsa", 
+			skey: mlSk,
+			vkey: mlPk,
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			s, err := NewSignerForCosignatureV1(test.skey)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+		v, err := NewVerifierForCosignatureV1(test.vkey)
+		if err != nil {
+		  t.Fatal(err)
+	  }
 
 	msg := "test\n123\nf+7CoKgXKE/tNys9TTXcr/ad6U/K3xvznmzew9y6SP0=\n"
 	n, err := note.Sign(&note.Note{Text: msg}, s)
@@ -29,9 +87,11 @@ func TestSignerRoundtrip(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if _, err := note.Open(n, note.VerifierList(s.Verifier())); err != nil {
+	if _, err := note.Open(n, note.VerifierList(v)); err != nil {
 		t.Fatal(err)
 	}
+})
+}
 }
 
 func TestSignerVerifierRoundtrip(t *testing.T) {
@@ -117,6 +177,9 @@ func TestCoSigV1NewVerifier(t *testing.T) {
 		}, {
 			name: "works: native algEd25519CosignatureV1 verifier",
 			pubK: "remora.n621.de+da77ade7+BOvN63jn/bLvkieywe8R6UYAtVtNbZpXh34x7onlmtw2",
+		}, {
+			name: "works: native algMLDSA44 verifier",
+			pubK: "test+5893dc2c+BtMcFiao6ZOdU6LZ40tLKbsWpDOU8smRapXBIYI3lXyESm62to+/AeDuWOEtbwUNVzrC9FacZ1q+gXES2hAhp5/C1TPwTiO/G+T9x0iAb8gSGkGwsbDJXmQMhsFM+Ub3tB5Fdujz4o7DF3NqCCUMC1zsD7jMyy9BTCFi6Av1I/ZDRQxJJOKFt31l0cJY6OHFcUGMSGSHcGEo839UikbMBlArWRgYk/Ve4aqW0pRl7G46Qk39pu/yFYwhk3gMYMkush5NKQo7EbvhnHvUlQWK27t2VsIbH2p/l9i73UDtEmHeqIMcqtwhCnFoqT6S7cL9/p7NLwxD1gICM0gCZIi3KrbnMFok+5uovBbrF9vISSXX67R1nprdjiE0MGAwZ3Prtt0ah2xchT5I1WgmUGSA0B1cnEDXWneUaA0axw/TQ47x88+jfKIN0kn8rg5bncI5q71hV2mF1n2xuE4G+WOdBRjMVGLWlt1rZcCh8IredoZe3SxWKx7amrLo00lFN8QL8TAw1bvDiFYRqyAZE4Z5M77H8OmAR2QahuZA+d8Q1SXmTdDtOu1RRXtHq54Nm3d2SbQl48UE7BsWvu7YdqGEti5EpTX3oMVmnnjj0FRH2QjlnpaRn5bE8tiblhL31f6KRz37E9lqIUoLuE19OQ+yYOj2B6avwEY6xWq5SrOOhENQKAODXTjacDYVL4Z1hsJA9+7qbFH5S3JjMCs4VFtZHOa4tkxbpO94lfPNnhqDnuFb5xm7sT51/In+xn0vAyCoaaIpm/rwG0nRFZmR6bafSPBJXcnrocdPy86sQ/C3ma7ldByWwsHuEm8YTNABAqn6hNICNECFuoV8EBwnA0BVkhClyjTkPSnyB1CAUEkzQwd/SW7VgjDoI9r6k4ot1oaxD9ZudZor7309jhMIbQhE1ODPMDxFM2B5XvhlJ6nl6r0JUI/q2uLnZGyzKDMGnL+T+uGDN+AvBrg4kyHEM1X39Dkr1XpJIMRlROY+GayJliTQ8eEdZ1yug5C0JGHJ9bEQu/L2Zf084+/+4BAUrrJ4JtmShbYulaDmMVjm72Osu5a9ld7KeZ2hn5uK9yhiUJqeBDGGLmqqZbbUwIRa9OWZoQVU+dCt2ust5migCq69O3H+83U2YKBj9r3QLv6FG/crj3IUrKagKIqv5fT71eeCEmSmdAGqVP+5hxBQMBcISqp+9rqDsS1NLba2YuUWYgFDlQ7Xq915t+d3N5ouHNWJHs1/2V0ZNsSvID1p73sUWVJlh2M4/B8/QT1uvteCPc+yycsJM80Xaomwv9KTfUpyNn60R860zr+Va432W8v5urT1Teu6QCTWKdq3ivhyYREBLvka07jb7SlIees2PKDfvibKBBanF/EmorgkdPIagG/88kT9GtXtOIQp/HJLw3Ej5QPwEgrLYZ0YY6t53ZC6BmjDt0eSEShPmqte74KC7Qgo2hvA3grqp03vA7RG3cMCmtn/k0PH9ZY4ytTF7eozJCRim9AWa0HudpkGKbv3ijxrkBBhAGTCGQe96Tt5nBiKatheV3z4i2o4TtoRC6SEQZUEnWLszXOWtghhfe/V7QqB8jfMLxHW2qkueUkTz2IatYI+2hlkyTQRIKGPjKrnF8qAKz5/PZcoaL6pBaWcpsUEcpwQs6/aT0tmB2UGZNzrj02lREEgGajjuqHMH/rwmqIQTV38KohBniPDkDV9jdIyU1HVlm5dElah29WMC+RWC6bN2GbOvn1+s6iQwNNLUGU=",
 		}, {
 			name:    "wrong number of parts",
 			pubK:    "bananas.sigstore.dev+12344556",
@@ -223,4 +286,30 @@ func TestVKeyToCosignatureV1(t *testing.T) {
 	if _, err = note.Open(n, note.VerifierList(v)); err == nil {
 			t.Errorf("Expected error trying to open cosigned note with standard vkey, but got success")
 	}
+}
+
+func mustGenerateEd25519Key(t *testing.T, name string) (string, string) {
+	t.Helper()
+	skey, vkey, err := note.GenerateKey(rand.Reader, name)
+	if err != nil {
+		t.Fatalf("Failed to generate Ed25519 key: %v", err)
+	}
+	return skey, vkey
+}
+
+func mustGenerateMLDSAKey(t *testing.T, name string) (string, string) {
+	t.Helper()
+	key, err := mldsa.GenerateKey(mldsa.MLDSA44())
+	if err != nil {
+		t.Fatalf("Failed to generate MLDSA key: %v", err)
+	}
+	privBytes := key.Bytes()
+	pubBytes := key.PublicKey().Bytes()
+	
+	pubKeyWithAlg := append([]byte{algMLDSA44}, pubBytes...)
+	hash := keyHashMLDSA(name, pubKeyWithAlg)
+	
+	skey := fmt.Sprintf("PRIVATE+KEY+%s+%08x+%s", name, hash, base64.StdEncoding.EncodeToString(append([]byte{algMLDSA44}, privBytes...)))
+	vkey := fmt.Sprintf("%s+%08x+%s", name, hash, base64.StdEncoding.EncodeToString(pubKeyWithAlg))
+	return skey, vkey
 }
