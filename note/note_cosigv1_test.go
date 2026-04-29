@@ -24,11 +24,11 @@ func TestSignerRoundtrip(t *testing.T) {
 		skey string
 	}{
 		{
-			name:"ed25519", 
+			name: "ed25519",
 			skey: edSk,
 		},
 		{
-			name: "mldsa", 
+			name: "mldsa",
 			skey: mlSk,
 		},
 	} {
@@ -60,12 +60,12 @@ func TestMLDSASignerVerifierRoundtrip(t *testing.T) {
 		vkey string
 	}{
 		{
-			name:"ed25519", 
+			name: "ed25519",
 			skey: edSk,
 			vkey: edPk,
 		},
 		{
-			name: "mldsa", 
+			name: "mldsa",
 			skey: mlSk,
 			vkey: mlPk,
 		},
@@ -76,24 +76,24 @@ func TestMLDSASignerVerifierRoundtrip(t *testing.T) {
 				t.Fatal(err)
 			}
 
-		v, err := NewVerifierForCosignatureV1(test.vkey)
-		if err != nil {
-		  t.Fatal(err)
-	  }
+			v, err := NewVerifierForCosignatureV1(test.vkey)
+			if err != nil {
+				t.Fatal(err)
+			}
 
-	msg := "test\n123\nf+7CoKgXKE/tNys9TTXcr/ad6U/K3xvznmzew9y6SP0=\n"
-	n, err := note.Sign(&note.Note{Text: msg}, s)
-	if err != nil {
-		t.Fatal(err)
+			msg := "test\n123\nf+7CoKgXKE/tNys9TTXcr/ad6U/K3xvznmzew9y6SP0=\n"
+			n, err := note.Sign(&note.Note{Text: msg}, s)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			t.Logf("s.KeyHash(): %08x, v.KeyHash(): %08x", s.KeyHash(), v.KeyHash())
+
+			if _, err := note.Open(n, note.VerifierList(v)); err != nil {
+				t.Fatal(err)
+			}
+		})
 	}
-
-	t.Logf("s.KeyHash(): %08x, v.KeyHash(): %08x", s.KeyHash(), v.KeyHash())
-
-	if _, err := note.Open(n, note.VerifierList(v)); err != nil {
-		t.Fatal(err)
-	}
-})
-}
 }
 
 func TestSignerVerifierRoundtrip(t *testing.T) {
@@ -257,7 +257,7 @@ func TestVKeyToCosignatureV1(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create cosignerv1: %v", err)
 	}
-	covkey, err :=	VKeyToCosignatureV1(vkey)
+	covkey, err := VKeyToCosignatureV1(vkey)
 	if err != nil {
 		t.Fatalf("Failed to convert vkey to cosigv1 verifier: %v", err)
 	}
@@ -286,7 +286,7 @@ func TestVKeyToCosignatureV1(t *testing.T) {
 	}
 	// Now check that the standard vkey cannot open a cosig signature.
 	if _, err = note.Open(n, note.VerifierList(v)); err == nil {
-			t.Errorf("Expected error trying to open cosigned note with standard vkey, but got success")
+		t.Errorf("Expected error trying to open cosigned note with standard vkey, but got success")
 	}
 
 	// Check that VKeyToCosignatureV1 fails for MLDSA keys.
@@ -298,17 +298,17 @@ func TestVKeyToCosignatureV1(t *testing.T) {
 
 func TestSubtreeRoundtrip(t *testing.T) {
 	skey, vkey := mustGenerateMLDSAKey(t, "mldsa")
-	
+
 	signer, err := NewMLDSASigner(skey)
 	if err != nil {
 		t.Fatal(err)
 	}
-	
+
 	verifier, err := NewMLDSAVerifier(vkey)
 	if err != nil {
 		t.Fatal(err)
 	}
-	
+
 	origin := "test-log"
 	var start uint64 = 0
 	var end uint64 = 10
@@ -317,23 +317,23 @@ func TestSubtreeRoundtrip(t *testing.T) {
 		t.Fatal(err)
 	}
 	timestamp := uint64(time.Now().Unix())
-	
+
 	sig, err := signer.SignSubtree(timestamp, origin, start, end, root)
 	if err != nil {
 		t.Fatal(err)
 	}
-	
+
 	if !verifier.VerifySubtree(timestamp, origin, start, end, root, sig) {
 		t.Error("Failed to verify valid subtree signature")
 	}
-	
+
 	// Test failure cases
 	wrongRoot := make([]byte, 32)
 	wrongRoot[0] = 1
 	if verifier.VerifySubtree(timestamp, origin, start, end, wrongRoot, sig) {
 		t.Error("VerifySubtree succeeded with wrong root")
 	}
-	
+
 	if verifier.VerifySubtree(timestamp, "wrong origin", start, end, root, sig) {
 		t.Error("VerifySubtree succeeded with wrong origin")
 	}
@@ -345,13 +345,13 @@ func TestMLDSAInvalidTimestamp(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	
+
 	origin := "test-log"
 	var start uint64 = 10 // > 0
 	var end uint64 = 20
 	root := make([]byte, 32)
 	timestamp := uint64(time.Now().Unix()) // > 0
-	
+
 	_, err = signer.SignSubtree(timestamp, origin, start, end, root)
 	if err == nil {
 		t.Error("Expected error for invalid timestamp (start > 0 && timestamp > 0), got nil")
@@ -375,10 +375,10 @@ func mustGenerateMLDSAKey(t *testing.T, name string) (string, string) {
 	}
 	privBytes := key.Bytes()
 	pubBytes := key.PublicKey().Bytes()
-	
+
 	pubKeyWithAlg := append([]byte{algMLDSA44}, pubBytes...)
 	hash := keyHashMLDSA(name, pubKeyWithAlg)
-	
+
 	skey := fmt.Sprintf("PRIVATE+KEY+%s+%08x+%s", name, hash, base64.StdEncoding.EncodeToString(append([]byte{algMLDSA44}, privBytes...)))
 	vkey := fmt.Sprintf("%s+%08x+%s", name, hash, base64.StdEncoding.EncodeToString(pubKeyWithAlg))
 	return skey, vkey

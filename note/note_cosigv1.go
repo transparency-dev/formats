@@ -12,8 +12,8 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
-	"strings"
 	"strconv"
+	"strings"
 	"time"
 	"unicode"
 	"unicode/utf8"
@@ -29,7 +29,7 @@ const (
 	algECDSAWithSHA256      = 2
 	algEd25519CosignatureV1 = 4
 	algRFC6962STH           = 5
-	algMLDSA44							= 6
+	algMLDSA44              = 6
 )
 
 const (
@@ -50,11 +50,11 @@ func NewMLDSASigner(skey string) (*SubtreeSigner, error) {
 	alg, key := key[0], key[1:]
 	if alg != algMLDSA44 {
 		return nil, errSignerID
-	}	
+	}
 	return newMLDSASigner(name, key)
 }
 
-// newMLDSASigner returns a signer for MLDSA cosignature v1, with the provided 
+// newMLDSASigner returns a signer for MLDSA cosignature v1, with the provided
 // name and key bytes in the format: algo || private key.
 func newMLDSASigner(name string, keyBytes []byte) (*SubtreeSigner, error) {
 	s := &SubtreeSigner{name: name}
@@ -92,14 +92,16 @@ func newMLDSASigner(name string, keyBytes []byte) (*SubtreeSigner, error) {
 		return sig, nil
 	}
 	s.verifier = &SubtreeVerifier{
-		name: name,
-		keyHash: s.hash,
+		name:       name,
+		keyHash:    s.hash,
 		verifyNote: func(msg, sig []byte) bool { return verifyMLDSACosigV1(pubKey, name)(msg, sig) },
-		verifySubtree: func(timestamp uint64, logOrigin string, start, end uint64, hash []byte, sig []byte) bool { return verifyMLDSACosigV1Subtree(pubKey, name)(logOrigin, start, end, hash, sig) },
+		verifySubtree: func(timestamp uint64, logOrigin string, start, end uint64, hash []byte, sig []byte) bool {
+			return verifyMLDSACosigV1Subtree(pubKey, name)(logOrigin, start, end, hash, sig)
+		},
 	}
 
 	return s, nil
-}	
+}
 
 // NewMLDSAVerifier constructs a verifier for MLDSA cosignature v1.
 func NewMLDSAVerifier(vkey string) (*SubtreeVerifier, error) {
@@ -112,10 +114,10 @@ func NewMLDSAVerifier(vkey string) (*SubtreeVerifier, error) {
 	alg, pubKeyBytes := keyBytes[0], keyBytes[1:]
 	if alg != algMLDSA44 {
 		return nil, errVerifierID
-	}	
+	}
 
 	v := &SubtreeVerifier{
-		name: name,
+		name:    name,
 		keyHash: keyHashMLDSA(name, keyBytes),
 	}
 
@@ -124,7 +126,9 @@ func NewMLDSAVerifier(vkey string) (*SubtreeVerifier, error) {
 		return nil, err
 	}
 	v.verifyNote = func(msg, sig []byte) bool { return verifyMLDSACosigV1(pubKey, name)(msg, sig) }
-	v.verifySubtree = func(timestamp uint64, logOrigin string, start, end uint64, hash []byte, sig []byte) bool { return verifyMLDSACosigV1Subtree(pubKey, name)(logOrigin, start, end, hash, sig) }
+	v.verifySubtree = func(timestamp uint64, logOrigin string, start, end uint64, hash []byte, sig []byte) bool {
+		return verifyMLDSACosigV1Subtree(pubKey, name)(logOrigin, start, end, hash, sig)
+	}
 	return v, nil
 }
 
@@ -175,7 +179,7 @@ func NewSignerForCosignatureV1(skey string) (*Signer, error) {
 			return sig, nil
 		}
 		s.verify = verifyEd25519CosigV1(pubkey[1:])
-		
+
 	case algMLDSA44:
 		stSigner, err := newMLDSASigner(name, key)
 		if err != nil {
@@ -191,15 +195,15 @@ func NewSignerForCosignatureV1(skey string) (*Signer, error) {
 
 // NewVerifierForCosignatureV1 constructs a new Verifier for timestamped
 // cosignature/v1 signatures from the provided vkey-formatted public key.
-// 
+//
 // Supported vkey types are:
 // - a standard Ed25519 verifier key (type 0x01)
 // - an Ed25519 CosignatureV1 key (type 0x04)
 // - an ML-DSA-44 CosignatureV1 key (type 0x06)
 //
-// Note: If a standard Ed25519 verifier key (type 0x01) is provided, it will 
-// be internally treated as an Ed25519 CosignatureV1 key (type 0x04), meaning 
-// the returned Verifier has a different key hash from a non-timestamped Ed25519 
+// Note: If a standard Ed25519 verifier key (type 0x01) is provided, it will
+// be internally treated as an Ed25519 CosignatureV1 key (type 0x04), meaning
+// the returned Verifier has a different key hash from a non-timestamped Ed25519
 // verifier key.
 func NewVerifierForCosignatureV1(vkey string) (note.Verifier, error) {
 	name, vkey, _ := strings.Cut(vkey, "+")
@@ -370,10 +374,10 @@ func formatMLDSACosignatureV1(cosignerName string, timestamp uint64, logOrigin s
 	// The signed message is a binary TLS presentation encoding of the
 	// following structure:
 	//     struct {
-	//        uint8 label[12] = "subtree/v1\n\0"; 
+	//        uint8 label[12] = "subtree/v1\n\0";
 	//        opaque cosigner_name<1..2^8-1>;
 	//        uint64 timestamp;
-	//        opaque log_origin<1..2^8-1>; 
+	//        opaque log_origin<1..2^8-1>;
 	//        uint64 start;
 	//        uint64 end;
 	//        uint8 hash[32];
@@ -396,12 +400,12 @@ func formatMLDSACosignatureV1(cosignerName string, timestamp uint64, logOrigin s
 }
 
 var (
-	errSignerID     = errors.New("malformed signer id")
-	errSignerAlg    = errors.New("unknown signer algorithm")
-	errVerifierID   = errors.New("malformed verifier id")
-	errVerifierAlg  = errors.New("unknown verifier algorithm")
-	errInvalidHash  = errors.New("invalid key hash")
-	errMalformedSig = errors.New("malformed signature")
+	errSignerID         = errors.New("malformed signer id")
+	errSignerAlg        = errors.New("unknown signer algorithm")
+	errVerifierID       = errors.New("malformed verifier id")
+	errVerifierAlg      = errors.New("unknown verifier algorithm")
+	errInvalidHash      = errors.New("invalid key hash")
+	errMalformedSig     = errors.New("malformed signature")
 	errInvalidTimestamp = errors.New("invalid timestamp")
 )
 
@@ -432,24 +436,25 @@ type Verifier struct {
 	v       func([]byte, []byte) bool
 }
 
-func (v *Verifier) Name() string                    { return v.name }
-func (v *Verifier) KeyHash() uint32                 { return v.keyHash }
+func (v *Verifier) Name() string                { return v.name }
+func (v *Verifier) KeyHash() uint32             { return v.keyHash }
 func (v *Verifier) Verify(msg, sig []byte) bool { return v.v(msg, sig) }
-
 
 // SubtreeSigner is a signer that can produce both note and subtree signatures.
 type SubtreeSigner struct {
-	name    string
-	hash   uint32
-	signNote   func([]byte) ([]byte, error)
+	name        string
+	hash        uint32
+	signNote    func([]byte) ([]byte, error)
 	signSubtree func(timestamp uint64, logOrigin string, start, end uint64, root []byte) ([]byte, error)
-	verifier *SubtreeVerifier
+	verifier    *SubtreeVerifier
 }
 
 func (s *SubtreeSigner) Name() string                    { return s.name }
 func (s *SubtreeSigner) KeyHash() uint32                 { return s.hash }
 func (s *SubtreeSigner) Sign(msg []byte) ([]byte, error) { return s.signNote(msg) }
-func (s *SubtreeSigner) SignSubtree(timestamp uint64, logOrigin string, start, end uint64, root []byte) ([]byte, error) { return s.signSubtree(timestamp, logOrigin, start, end, root)}
+func (s *SubtreeSigner) SignSubtree(timestamp uint64, logOrigin string, start, end uint64, root []byte) ([]byte, error) {
+	return s.signSubtree(timestamp, logOrigin, start, end, root)
+}
 
 // SubtreeVerifier is a verifier that supports the verification of subtree signatures.
 //
@@ -457,16 +462,18 @@ func (s *SubtreeSigner) SignSubtree(timestamp uint64, logOrigin string, start, e
 // against tree roots represented as checkpoints, but it can also be used to verify
 // arbitrary subtree roots using the VerifySubtree method.
 type SubtreeVerifier struct {
-	name    string
-	keyHash uint32
-	verifyNote       func([]byte, []byte) bool
+	name          string
+	keyHash       uint32
+	verifyNote    func([]byte, []byte) bool
 	verifySubtree func(timestamp uint64, logOrigin string, start, end uint64, hash []byte, sig []byte) bool
 }
 
-func (v *SubtreeVerifier) Name() string                    { return v.name }
-func (v *SubtreeVerifier) KeyHash() uint32                 { return v.keyHash }
+func (v *SubtreeVerifier) Name() string                { return v.name }
+func (v *SubtreeVerifier) KeyHash() uint32             { return v.keyHash }
 func (v *SubtreeVerifier) Verify(msg, sig []byte) bool { return v.verifyNote(msg, sig) }
-func (v *SubtreeVerifier) VerifySubtree(timestamp uint64, logOrigin string, start, end uint64, hash []byte, sig []byte) bool { return v.verifySubtree(timestamp, logOrigin, start, end, hash, sig) }
+func (v *SubtreeVerifier) VerifySubtree(timestamp uint64, logOrigin string, start, end uint64, hash []byte, sig []byte) bool {
+	return v.verifySubtree(timestamp, logOrigin, start, end, hash, sig)
+}
 
 // isValidName reports whether name is valid.
 // It must be non-empty and not have any Unicode spaces or pluses.
