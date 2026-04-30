@@ -12,12 +12,15 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
-	"strings"
 	"strconv"
+	"strings"
 	"time"
 	"unicode"
 	"unicode/utf8"
 
+	"filippo.io/mldsa"
+	"github.com/transparency-dev/formats/log"
+	"golang.org/x/crypto/cryptobyte"
 	"golang.org/x/mod/sumdb/note"
 )
 
@@ -26,6 +29,7 @@ const (
 	algECDSAWithSHA256      = 2
 	algEd25519CosignatureV1 = 4
 	algRFC6962STH           = 5
+	algMLDSA44              = 6
 )
 
 const (
@@ -33,11 +37,110 @@ const (
 	timestampSize = 8
 )
 
+// NewMLDSASigner returns a signer for MLDSA cosignature v1.
+func NewMLDSASigner(skey string) (*SubtreeSigner, error) {
+	priv1, skey, _ := strings.Cut(skey, "+")
+	priv2, skey, _ := strings.Cut(skey, "+")
+	name, skey, _ := strings.Cut(skey, "+")
+	hash16, key64, _ := strings.Cut(skey, "+")
+	key, err := base64.StdEncoding.DecodeString(key64)
+	if priv1 != "PRIVATE" || priv2 != "KEY" || len(hash16) != 8 || err != nil || !isValidName(name) || len(key) == 0 {
+		return nil, errSignerID
+	}
+	alg, key := key[0], key[1:]
+	if alg != algMLDSA44 {
+		return nil, errSignerID
+	}
+	return newMLDSASigner(name, key)
+}
+
+// newMLDSASigner returns a signer for MLDSA cosignature v1, with the provided
+// name and key bytes in the format: algo || private key.
+func newMLDSASigner(name string, keyBytes []byte) (*SubtreeSigner, error) {
+	s := &SubtreeSigner{name: name}
+	if len(keyBytes) != mldsa.PrivateKeySize {
+		return nil, errSignerID
+	}
+	key, err := mldsa.NewPrivateKey(mldsa.MLDSA44(), keyBytes)
+	if err != nil {
+		return nil, err
+	}
+	pubKey := key.PublicKey()
+	pubKeyBytes := append([]byte{algMLDSA44}, pubKey.Bytes()...)
+	s.hash = keyHashMLDSA(name, pubKeyBytes)
+	s.signNote = func(msg []byte) ([]byte, error) {
+		t := uint64(time.Now().Unix())
+		c := &log.Checkpoint{}
+		if _, err := c.Unmarshal(msg); err != nil {
+			return nil, err
+		}
+		return s.signSubtree(t, c.Origin, 0, c.Size, c.Hash)
+	}
+	s.signSubtree = func(timestamp uint64, logOrigin string, start, end uint64, root []byte) ([]byte, error) {
+		m, err := formatMLDSACosignatureV1(name, timestamp, logOrigin, start, end, root)
+		if err != nil {
+			return nil, err
+		}
+		sB, err := key.Sign(nil, m, nil)
+		if err != nil {
+			return nil, err
+		}
+		// The signature itself is encoded as timestamp || signature.
+		sig := make([]byte, 0, timestampSize+mldsa.MLDSA44SignatureSize)
+		sig = binary.BigEndian.AppendUint64(sig, timestamp)
+		sig = append(sig, sB...)
+		return sig, nil
+	}
+	s.verifier = &SubtreeVerifier{
+		name:       name,
+		keyHash:    s.hash,
+		verifyNote: func(msg, sig []byte) bool { return verifyMLDSACosigV1(pubKey, name)(msg, sig) },
+		verifySubtree: func(timestamp uint64, logOrigin string, start, end uint64, hash []byte, sig []byte) bool {
+			return verifyMLDSACosigV1Subtree(pubKey, name)(logOrigin, start, end, hash, sig)
+		},
+	}
+
+	return s, nil
+}
+
+// NewMLDSAVerifier constructs a verifier for MLDSA cosignature v1.
+func NewMLDSAVerifier(vkey string) (*SubtreeVerifier, error) {
+	name, vkey, _ := strings.Cut(vkey, "+")
+	hash16, key64, _ := strings.Cut(vkey, "+")
+	keyBytes, err := base64.StdEncoding.DecodeString(key64)
+	if len(hash16) != 8 || err != nil || !isValidName(name) || len(keyBytes) != mldsa.MLDSA44PublicKeySize+1 {
+		return nil, errVerifierID
+	}
+	alg, pubKeyBytes := keyBytes[0], keyBytes[1:]
+	if alg != algMLDSA44 {
+		return nil, errVerifierID
+	}
+
+	v := &SubtreeVerifier{
+		name:    name,
+		keyHash: keyHashMLDSA(name, keyBytes),
+	}
+
+	pubKey, err := mldsa.NewPublicKey(mldsa.MLDSA44(), pubKeyBytes)
+	if err != nil {
+		return nil, err
+	}
+	v.verifyNote = func(msg, sig []byte) bool { return verifyMLDSACosigV1(pubKey, name)(msg, sig) }
+	v.verifySubtree = func(timestamp uint64, logOrigin string, start, end uint64, hash []byte, sig []byte) bool {
+		return verifyMLDSACosigV1Subtree(pubKey, name)(logOrigin, start, end, hash, sig)
+	}
+	return v, nil
+}
+
 // NewSignerForCosignatureV1 constructs a new Signer that produces timestamped
-// cosignature/v1 signatures from a standard Ed25519 encoded signer key.
+// cosignature/v1 signatures using the provided skey-formated key.
 //
-// (The returned Signer has a different key hash from a non-timestamped one,
-// meaning it will differ from the key hash in the input encoding.)
+// Supported skey algorithms are:
+// - a standard Ed25519 encoded signer key (algo ID 0x01)
+// - an Ed25519 cosignature/v1 encoded signer key (algo ID 0x04)
+// - an ML-DSA-44 cosignature/v1 encoded signer key (algo ID 0x06)
+//
+// See https://c2sp.org/tlog-cosignature for more details.
 func NewSignerForCosignatureV1(skey string) (*Signer, error) {
 	priv1, skey, _ := strings.Cut(skey, "+")
 	priv2, skey, _ := strings.Cut(skey, "+")
@@ -55,7 +158,7 @@ func NewSignerForCosignatureV1(skey string) (*Signer, error) {
 	default:
 		return nil, errSignerAlg
 
-	case algEd25519:
+	case algEd25519, algEd25519CosignatureV1:
 		if len(key) != ed25519.SeedSize {
 			return nil, errSignerID
 		}
@@ -64,7 +167,7 @@ func NewSignerForCosignatureV1(skey string) (*Signer, error) {
 		s.hash = keyHashEd25519(name, pubkey)
 		s.sign = func(msg []byte) ([]byte, error) {
 			t := uint64(time.Now().Unix())
-			m, err := formatCosignatureV1(t, msg)
+			m, err := formatEd25519CosignatureV1(t, msg)
 			if err != nil {
 				return nil, err
 			}
@@ -75,17 +178,33 @@ func NewSignerForCosignatureV1(skey string) (*Signer, error) {
 			sig = append(sig, ed25519.Sign(key, m)...)
 			return sig, nil
 		}
-		s.verify = verifyCosigV1(pubkey[1:])
+		s.verify = verifyEd25519CosigV1(pubkey[1:])
+
+	case algMLDSA44:
+		stSigner, err := newMLDSASigner(name, key)
+		if err != nil {
+			return nil, err
+		}
+		s.sign = stSigner.Sign
+		s.verify = stSigner.verifier.verifyNote
+		s.hash = stSigner.hash
 	}
 
 	return s, nil
 }
 
 // NewVerifierForCosignatureV1 constructs a new Verifier for timestamped
-// cosignature/v1 signatures from either a standard Ed25519 encoded verifier key, or an Ed25519 CosignatureV1 key.
+// cosignature/v1 signatures from the provided vkey-formatted public key.
 //
-// (In the case of passing a standard Ed25519 key, the returned Verifier has a different key hash from a non-timestamped one,
-// meaning it will differ from the key hash in the input encoding.)
+// Supported vkey types are:
+// - a standard Ed25519 verifier key (type 0x01)
+// - an Ed25519 CosignatureV1 key (type 0x04)
+// - an ML-DSA-44 CosignatureV1 key (type 0x06)
+//
+// Note: If a standard Ed25519 verifier key (type 0x01) is provided, it will
+// be internally treated as an Ed25519 CosignatureV1 key (type 0x04), meaning
+// the returned Verifier has a different key hash from a non-timestamped Ed25519
+// verifier key.
 func NewVerifierForCosignatureV1(vkey string) (note.Verifier, error) {
 	name, vkey, _ := strings.Cut(vkey, "+")
 	hash16, key64, _ := strings.Cut(vkey, "+")
@@ -108,7 +227,18 @@ func NewVerifierForCosignatureV1(vkey string) (note.Verifier, error) {
 			return nil, errVerifierID
 		}
 		v.keyHash = keyHashEd25519(name, append([]byte{algEd25519CosignatureV1}, key...))
-		v.v = verifyCosigV1(key)
+		v.v = verifyEd25519CosigV1(key)
+
+	case algMLDSA44:
+		if len(key) != mldsa.MLDSA44PublicKeySize {
+			return nil, errVerifierID
+		}
+		v.keyHash = keyHashMLDSA(name, append([]byte{algMLDSA44}, key...))
+		pubKey, err := mldsa.NewPublicKey(mldsa.MLDSA44(), key)
+		if err != nil {
+			return nil, err
+		}
+		v.v = verifyMLDSACosigV1(pubKey, name)
 	}
 
 	return v, nil
@@ -150,7 +280,8 @@ func CoSigV1Timestamp(s note.Signature) (time.Time, error) {
 	if err != nil {
 		return time.UnixMilli(0), errMalformedSig
 	}
-	if len(r) != keyHashSize+timestampSize+ed25519.SignatureSize {
+	const minSigSize = 64 // min(ed25519.SignatureSize, mldsa.MLDSA44SignatureSize)
+	if len(r) < keyHashSize+timestampSize+minSigSize {
 		return time.UnixMilli(0), errVerifierAlg
 	}
 	r = r[keyHashSize:] // Skip the hash
@@ -158,15 +289,15 @@ func CoSigV1Timestamp(s note.Signature) (time.Time, error) {
 	return time.Unix(int64(binary.BigEndian.Uint64(r)), 0), nil
 }
 
-// verifyCosigV1 returns a verify function based on key.
-func verifyCosigV1(key []byte) func(msg, sig []byte) bool {
+// verifyEd25519CosigV1 returns a verify function based on key.
+func verifyEd25519CosigV1(key []byte) func(msg, sig []byte) bool {
 	return func(msg, sig []byte) bool {
 		if len(sig) != timestampSize+ed25519.SignatureSize {
 			return false
 		}
 		t := binary.BigEndian.Uint64(sig)
 		sig = sig[timestampSize:]
-		m, err := formatCosignatureV1(t, msg)
+		m, err := formatEd25519CosignatureV1(t, msg)
 		if err != nil {
 			return false
 		}
@@ -174,8 +305,42 @@ func verifyCosigV1(key []byte) func(msg, sig []byte) bool {
 	}
 }
 
-func formatCosignatureV1(t uint64, msg []byte) ([]byte, error) {
-	// The signed message is in the following format
+// verifyMLDSACosigV1 returns a checkpoint-cosignature verifying function
+// based on the provided key and cosigner name.
+//
+// Checkpoint signatures are simply subtree signatures over the range [0, size),
+// so we parse the checkpoint and then use the subtree verifier to verify
+// the signature as a subtree signature.
+func verifyMLDSACosigV1(pubKey *mldsa.PublicKey, name string) func(msg, sig []byte) bool {
+	verifySubtree := verifyMLDSACosigV1Subtree(pubKey, name)
+	return func(msg, sig []byte) bool {
+		c := &log.Checkpoint{}
+		if _, err := c.Unmarshal(msg); err != nil {
+			return false
+		}
+		return verifySubtree(c.Origin, 0, c.Size, c.Hash, sig)
+	}
+}
+
+// verifyMLDSACosigV1Subtree returns a subtree-cosignature verifying function
+// based on the provided key and cosigner name.
+func verifyMLDSACosigV1Subtree(pubKey *mldsa.PublicKey, name string) func(logOrigin string, start, end uint64, root []byte, sig []byte) bool {
+	return func(logOrigin string, start, end uint64, root []byte, sig []byte) bool {
+		if len(sig) != timestampSize+mldsa.MLDSA44SignatureSize {
+			return false
+		}
+		t := binary.BigEndian.Uint64(sig)
+		sig = sig[timestampSize:]
+		m, err := formatMLDSACosignatureV1(name, t, logOrigin, start, end, root)
+		if err != nil {
+			return false
+		}
+		return mldsa.Verify(pubKey, m, sig, nil) == nil
+	}
+}
+
+func formatEd25519CosignatureV1(t uint64, msg []byte) ([]byte, error) {
+	// The signed message is in the following format:
 	//
 	//      cosignature/v1
 	//      time TTTTTTTTTT
@@ -191,6 +356,8 @@ func formatCosignatureV1(t uint64, msg []byte) ([]byte, error) {
 	// understand that the witness is asserting observation of correct
 	// append-only operation of the log based on the first three lines;
 	// no semantic statement is made about any extra "extension" lines.
+	//
+	// See https://c2sp.org/tlog-cosignature for more details.
 
 	if lines := bytes.Split(msg, []byte("\n")); len(lines) < 3 {
 		return nil, errors.New("cosigned note format invalid")
@@ -198,15 +365,51 @@ func formatCosignatureV1(t uint64, msg []byte) ([]byte, error) {
 	return []byte(fmt.Sprintf("cosignature/v1\ntime %d\n%s", t, msg)), nil
 }
 
+func formatMLDSACosignatureV1(cosignerName string, timestamp uint64, logOrigin string, start, end uint64, hash []byte) ([]byte, error) {
+	// SPEC: If start is not zero, timestamp MUST be zero.
+	if start > 0 && timestamp > 0 {
+		return nil, errInvalidTimestamp
+	}
+
+	// The signed message is a binary TLS presentation encoding of the
+	// following structure:
+	//     struct {
+	//        uint8 label[12] = "subtree/v1\n\0";
+	//        opaque cosigner_name<1..2^8-1>;
+	//        uint64 timestamp;
+	//        opaque log_origin<1..2^8-1>;
+	//        uint64 start;
+	//        uint64 end;
+	//        uint8 hash[32];
+	//    } cosigned_message;
+	//
+	// See https://c2sp.org/tlog-cosignature for more details.
+
+	const label = "subtree/v1\n\x00"
+	r := cryptobyte.NewFixedBuilder(make([]byte, 0, len(label)+(2+len(cosignerName))+8+(2+len(logOrigin))+8+8+32))
+	r.AddBytes([]byte(label))
+	r.AddUint8(uint8(len(cosignerName)))
+	r.AddBytes([]byte(cosignerName))
+	r.AddUint64(timestamp)
+	r.AddUint8(uint8(len(logOrigin)))
+	r.AddBytes([]byte(logOrigin))
+	r.AddUint64(start)
+	r.AddUint64(end)
+	r.AddBytes(hash)
+	return r.Bytes()
+}
+
 var (
-	errSignerID     = errors.New("malformed signer id")
-	errSignerAlg    = errors.New("unknown signer algorithm")
-	errVerifierID   = errors.New("malformed verifier id")
-	errVerifierAlg  = errors.New("unknown verifier algorithm")
-	errInvalidHash  = errors.New("invalid key hash")
-	errMalformedSig = errors.New("malformed signature")
+	errSignerID         = errors.New("malformed signer id")
+	errSignerAlg        = errors.New("unknown signer algorithm")
+	errVerifierID       = errors.New("malformed verifier id")
+	errVerifierAlg      = errors.New("unknown verifier algorithm")
+	errInvalidHash      = errors.New("invalid key hash")
+	errMalformedSig     = errors.New("malformed signature")
+	errInvalidTimestamp = errors.New("invalid timestamp")
 )
 
+// Signer is a note.Signer which also provides access to the corresponding Verifier.
 type Signer struct {
 	name   string
 	hash   uint32
@@ -218,12 +421,58 @@ func (s *Signer) Name() string                    { return s.name }
 func (s *Signer) KeyHash() uint32                 { return s.hash }
 func (s *Signer) Sign(msg []byte) ([]byte, error) { return s.sign(msg) }
 
-func (s *Signer) Verifier() note.Verifier {
-	return &verifier{
+func (s *Signer) Verifier() *Verifier {
+	return &Verifier{
 		name:    s.name,
 		keyHash: s.hash,
 		v:       s.verify,
 	}
+}
+
+// Verifier is a note.Verifier.
+type Verifier struct {
+	name    string
+	keyHash uint32
+	v       func([]byte, []byte) bool
+}
+
+func (v *Verifier) Name() string                { return v.name }
+func (v *Verifier) KeyHash() uint32             { return v.keyHash }
+func (v *Verifier) Verify(msg, sig []byte) bool { return v.v(msg, sig) }
+
+// SubtreeSigner is a signer that can produce both note and subtree signatures.
+type SubtreeSigner struct {
+	name        string
+	hash        uint32
+	signNote    func([]byte) ([]byte, error)
+	signSubtree func(timestamp uint64, logOrigin string, start, end uint64, root []byte) ([]byte, error)
+	verifier    *SubtreeVerifier
+}
+
+func (s *SubtreeSigner) Name() string                    { return s.name }
+func (s *SubtreeSigner) KeyHash() uint32                 { return s.hash }
+func (s *SubtreeSigner) Sign(msg []byte) ([]byte, error) { return s.signNote(msg) }
+func (s *SubtreeSigner) SignSubtree(timestamp uint64, logOrigin string, start, end uint64, root []byte) ([]byte, error) {
+	return s.signSubtree(timestamp, logOrigin, start, end, root)
+}
+
+// SubtreeVerifier is a verifier that supports the verification of subtree signatures.
+//
+// This struct implements the note.Verifier interface to facilitate cosigning operations
+// against tree roots represented as checkpoints, but it can also be used to verify
+// arbitrary subtree roots using the VerifySubtree method.
+type SubtreeVerifier struct {
+	name          string
+	keyHash       uint32
+	verifyNote    func([]byte, []byte) bool
+	verifySubtree func(timestamp uint64, logOrigin string, start, end uint64, hash []byte, sig []byte) bool
+}
+
+func (v *SubtreeVerifier) Name() string                { return v.name }
+func (v *SubtreeVerifier) KeyHash() uint32             { return v.keyHash }
+func (v *SubtreeVerifier) Verify(msg, sig []byte) bool { return v.verifyNote(msg, sig) }
+func (v *SubtreeVerifier) VerifySubtree(timestamp uint64, logOrigin string, start, end uint64, hash []byte, sig []byte) bool {
+	return v.verifySubtree(timestamp, logOrigin, start, end, hash, sig)
 }
 
 // isValidName reports whether name is valid.
@@ -233,6 +482,15 @@ func isValidName(name string) bool {
 }
 
 func keyHashEd25519(name string, key []byte) uint32 {
+	h := sha256.New()
+	h.Write([]byte(name))
+	h.Write([]byte("\n"))
+	h.Write(key)
+	sum := h.Sum(nil)
+	return binary.BigEndian.Uint32(sum)
+}
+
+func keyHashMLDSA(name string, key []byte) uint32 {
 	h := sha256.New()
 	h.Write([]byte(name))
 	h.Write([]byte("\n"))
