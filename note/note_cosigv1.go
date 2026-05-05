@@ -38,8 +38,8 @@ const (
 )
 
 
-// GenerateMLDSASignerKey generates a named signer and verifier key pair. The signer key skey is private and must be kept secret.
-func GenerateMLDSASignerKey(name string) (skey string, vkey string, err error) {
+// GenerateMLDSAKey generates a named signer and verifier key pair. The signer key skey is private and must be kept secret.
+func GenerateMLDSAKey(name string) (skey string, vkey string, err error) {
 	if !isValidName(name) {
 		return "", "", errSignerID
 	}
