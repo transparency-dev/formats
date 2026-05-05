@@ -328,7 +328,7 @@ func TestMLDSAInvalidTimestamp(t *testing.T) {
 	}
 }
 
-func TestGenerateMLDSASignerKey(t *testing.T) {
+func TestGenerateMLDSAKey(t *testing.T) {
 	for _, test := range []struct {
 		name    string
 		wantErr bool
@@ -342,7 +342,7 @@ func TestGenerateMLDSASignerKey(t *testing.T) {
 		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			skey, vkey, err := GenerateMLDSASignerKey(test.name)
+			skey, vkey, err := GenerateMLDSAKey(test.name)
 			if gotErr := err != nil; gotErr != test.wantErr {
 				t.Fatalf("GenerateMLDSASignerKey(%q) error = %v, wantErr %v", test.name, err, test.wantErr)
 			}
@@ -382,9 +382,9 @@ func mustGenerateEd25519Key(t *testing.T, name string) (string, string) {
 
 func mustGenerateMLDSAKey(t *testing.T, name string) (string, string) {
 	t.Helper()
-	skey, vkey, err := GenerateMLDSASignerKey(name)
+	skey, vkey, err := GenerateMLDSAKey(name)
 	if err != nil {
-		t.Fatalf("GenerateMLDSASignerKey(%q): %v", name, err)
+		t.Fatalf("GenerateMLDSAKey(%q): %v", name, err)
 	}
 	return skey, vkey
 }
