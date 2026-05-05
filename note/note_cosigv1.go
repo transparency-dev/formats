@@ -37,6 +37,27 @@ const (
 	timestampSize = 8
 )
 
+
+// GenerateMLDSASignerKey generates a named signer and verifier key pair. The signer key skey is private and must be kept secret.
+func GenerateMLDSASignerKey(name string) (skey string, vkey string, err error) {
+	if !isValidName(name) {
+		return "", "", errSignerID
+	}
+	secK, err := mldsa.GenerateKey(mldsa.MLDSA44())
+	if err != nil {
+		return "", "", err
+	}
+	secKBytes := append([]byte{algMLDSA44}, secK.Bytes()...)
+	pubKBytes := append([]byte{algMLDSA44}, secK.PublicKey().Bytes()...)
+
+	h := keyHashMLDSA(name, pubKBytes)
+
+	skey = fmt.Sprintf("PRIVATE+KEY+%s+%08x+%s", name, h, base64.StdEncoding.EncodeToString(secKBytes))
+	vkey = fmt.Sprintf("%s+%08x+%s", name, h, base64.StdEncoding.EncodeToString(pubKBytes))
+
+	return skey, vkey, nil
+}
+
 // NewMLDSASigner returns a signer for MLDSA cosignature v1.
 func NewMLDSASigner(skey string) (*SubtreeSigner, error) {
 	priv1, skey, _ := strings.Cut(skey, "+")
