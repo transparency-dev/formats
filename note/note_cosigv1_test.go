@@ -6,12 +6,9 @@ package note
 
 import (
 	"crypto/rand"
-	"encoding/base64"
-	"fmt"
 	"testing"
 	"time"
 
-	"filippo.io/mldsa"
 	"golang.org/x/mod/sumdb/note"
 )
 
@@ -51,7 +48,7 @@ func TestSignerRoundtrip(t *testing.T) {
 	}
 }
 
-func TestMLDSASignerVerifierRoundtrip(t *testing.T) {
+func TestCosignnatureV1RoundTrip(t *testing.T) {
 	edSk, edPk := mustGenerateEd25519Key(t, "ed25519")
 	mlSk, mlPk := mustGenerateMLDSAKey(t, "mldsa")
 	for _, test := range []struct {
@@ -93,33 +90,6 @@ func TestMLDSASignerVerifierRoundtrip(t *testing.T) {
 				t.Fatal(err)
 			}
 		})
-	}
-}
-
-func TestSignerVerifierRoundtrip(t *testing.T) {
-	skey, vkey, err := note.GenerateKey(rand.Reader, "test")
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	s, err := NewSignerForCosignatureV1(skey)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	v, err := NewVerifierForCosignatureV1(vkey)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	msg := "test\n123\nf+7CoKgXKE/tNys9TTXcr/ad6U/K3xvznmzew9y6SP0=\n"
-	n, err := note.Sign(&note.Note{Text: msg}, s)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	if _, err := note.Open(n, note.VerifierList(v)); err != nil {
-		t.Fatal(err)
 	}
 }
 
@@ -200,7 +170,7 @@ func TestCoSigV1NewVerifier(t *testing.T) {
 			wantErr: true,
 		}, {
 			name:    "incorrect keyhash",
-			pubK:    "rekor.sigstore.dev" + "+" + "00000000" + "+" + sigStoreKeyMaterial,
+			pubK:    "rekor.sigstore.dev+00000000+" + sigStoreKeyMaterial,
 			wantErr: true,
 		},
 	} {
@@ -358,6 +328,49 @@ func TestMLDSAInvalidTimestamp(t *testing.T) {
 	}
 }
 
+func TestGenerateMLDSASignerKey(t *testing.T) {
+	for _, test := range []struct {
+		name    string
+		wantErr bool
+	}{
+		{
+			name: "valid",
+		},
+		{
+			name:    "invalid name",
+			wantErr: true,
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			skey, vkey, err := GenerateMLDSASignerKey(test.name)
+			if gotErr := err != nil; gotErr != test.wantErr {
+				t.Fatalf("GenerateMLDSASignerKey(%q) error = %v, wantErr %v", test.name, err, test.wantErr)
+			}
+			if test.wantErr {
+				return
+			}
+			// Roundtrip check
+			s, err := NewMLDSASigner(skey)
+			if err != nil {
+				t.Fatalf("NewMLDSASigner(%q): %v", skey, err)
+			}
+			v, err := NewMLDSAVerifier(vkey)
+			if err != nil {
+				t.Fatalf("NewMLDSAVerifier(%q): %v", vkey, err)
+			}
+			if s.Name() != test.name {
+				t.Errorf("Signer name = %q, want %q", s.Name(), test.name)
+			}
+			if v.Name() != test.name {
+				t.Errorf("Verifier name = %q, want %q", v.Name(), test.name)
+			}
+			if s.KeyHash() != v.KeyHash() {
+				t.Errorf("Signer hash %08x != Verifier hash %08x", s.KeyHash(), v.KeyHash())
+			}
+		})
+	}
+}
+
 func mustGenerateEd25519Key(t *testing.T, name string) (string, string) {
 	t.Helper()
 	skey, vkey, err := note.GenerateKey(rand.Reader, name)
@@ -369,17 +382,9 @@ func mustGenerateEd25519Key(t *testing.T, name string) (string, string) {
 
 func mustGenerateMLDSAKey(t *testing.T, name string) (string, string) {
 	t.Helper()
-	key, err := mldsa.GenerateKey(mldsa.MLDSA44())
+	skey, vkey, err := GenerateMLDSASignerKey(name)
 	if err != nil {
-		t.Fatalf("Failed to generate MLDSA key: %v", err)
+		t.Fatalf("GenerateMLDSASignerKey(%q): %v", name, err)
 	}
-	privBytes := key.Bytes()
-	pubBytes := key.PublicKey().Bytes()
-
-	pubKeyWithAlg := append([]byte{algMLDSA44}, pubBytes...)
-	hash := keyHashMLDSA(name, pubKeyWithAlg)
-
-	skey := fmt.Sprintf("PRIVATE+KEY+%s+%08x+%s", name, hash, base64.StdEncoding.EncodeToString(append([]byte{algMLDSA44}, privBytes...)))
-	vkey := fmt.Sprintf("%s+%08x+%s", name, hash, base64.StdEncoding.EncodeToString(pubKeyWithAlg))
 	return skey, vkey
 }
