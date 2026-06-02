@@ -17,7 +17,6 @@ package note
 import (
 	"crypto"
 	"crypto/ecdsa"
-	"crypto/rsa"
 	"crypto/sha256"
 	"crypto/x509"
 	"encoding/base64"
@@ -212,12 +211,6 @@ func verifyRFC6962(key crypto.PublicKey) func([]byte, string, []byte) bool {
 				return false
 			}
 			return ecdsa.VerifyASN1(k, dgst[:], sig)
-		case *rsa.PublicKey:
-			// RFC 5246 s7.4.1.4.1.
-			if sAlg != 0x01 {
-				return false
-			}
-			return rsa.VerifyPKCS1v15(k, crypto.SHA256, dgst[:], sig) != nil
 		default:
 			return false
 		}
