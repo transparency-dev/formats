@@ -5,6 +5,6 @@ go 1.25.0
 require (
 	filippo.io/mldsa v0.0.0-20260215214346-43d0283efc3e
 	github.com/google/go-cmp v0.7.0
-	golang.org/x/crypto v0.52.0
-	golang.org/x/mod v0.36.0
+	golang.org/x/crypto v0.53.0
+	golang.org/x/mod v0.37.0
 )
