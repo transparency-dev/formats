@@ -391,6 +391,9 @@ func formatMLDSACosignatureV1(cosignerName string, timestamp uint64, logOrigin s
 	if start > 0 && timestamp > 0 {
 		return nil, errInvalidTimestamp
 	}
+	if len(logOrigin) > 255 || len(cosignerName) > 255 {
+		return nil, errSignerID
+	}
 
 	// The signed message is a binary TLS presentation encoding of the
 	// following structure:
@@ -499,6 +502,9 @@ func (v *SubtreeVerifier) VerifySubtree(timestamp uint64, logOrigin string, star
 // isValidName reports whether name is valid.
 // It must be non-empty and not have any Unicode spaces or pluses.
 func isValidName(name string) bool {
+	if len(name) > 255 {
+		return false
+	}
 	return name != "" && utf8.ValidString(name) && strings.IndexFunc(name, unicode.IsSpace) < 0 && !strings.Contains(name, "+")
 }
 
