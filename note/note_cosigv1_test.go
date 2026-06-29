@@ -6,6 +6,7 @@ package note
 
 import (
 	"crypto/rand"
+	"strings"
 	"testing"
 	"time"
 
@@ -48,7 +49,41 @@ func TestSignerRoundtrip(t *testing.T) {
 	}
 }
 
-func TestCosignnatureV1RoundTrip(t *testing.T) {
+func TestFormatMLDSASignatureV1(t *testing.T) {
+	for _, test := range []struct {
+		name string
+		cosignerName string
+		logOrigin string
+		wantErr bool
+	}{
+		{
+			name: "ok",
+			cosignerName: "mldsa",
+			logOrigin: "test",
+		},
+		{
+			name: "origin name too long",
+			cosignerName: "mldsa",
+			logOrigin: strings.Repeat("t", 256),
+			wantErr: true,
+		},
+		{
+			name: "cosigner name too long",
+			cosignerName: "mldsa"+strings.Repeat("a", 255),
+			logOrigin: "test",
+			wantErr: true,
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			_, err := formatMLDSACosignatureV1(test.cosignerName, 0, test.logOrigin, 0, 0, []byte{})
+			if gotErr := err != nil; gotErr != test.wantErr {
+				t.Fatalf("formatMLDSACosignatureV1: got %v", err)
+			}
+		})
+	}
+}
+
+func TestCosignatureV1RoundTrip(t *testing.T) {
 	edSk, edPk := mustGenerateEd25519Key(t, "ed25519")
 	mlSk, mlPk := mustGenerateMLDSAKey(t, "mldsa")
 	for _, test := range []struct {
@@ -338,6 +373,10 @@ func TestGenerateMLDSAKey(t *testing.T) {
 		},
 		{
 			name:    "invalid name",
+			wantErr: true,
+		},
+		{
+			name: "name-too-long"+strings.Repeat("g", 255),
 			wantErr: true,
 		},
 	} {
