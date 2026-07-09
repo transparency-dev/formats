@@ -480,6 +480,10 @@ func (s *SubtreeSigner) SignSubtree(timestamp uint64, logOrigin string, start, e
 	return s.signSubtree(timestamp, logOrigin, start, end, root)
 }
 
+func (s *SubtreeSigner) Verifier() *SubtreeVerifier {
+	return s.verifier
+}
+
 // SubtreeVerifier is a verifier that supports the verification of subtree signatures.
 //
 // This struct implements the note.Verifier interface to facilitate cosigning operations
