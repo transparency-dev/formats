@@ -37,7 +37,6 @@ const (
 	timestampSize = 8
 )
 
-
 // GenerateMLDSAKey generates a named signer and verifier key pair. The signer key skey is private and must be kept secret.
 func GenerateMLDSAKey(name string) (skey string, vkey string, err error) {
 	if !isValidName(name) {
@@ -59,7 +58,7 @@ func GenerateMLDSAKey(name string) (skey string, vkey string, err error) {
 }
 
 // NewMLDSASigner returns a signer for MLDSA cosignature v1.
-func NewMLDSASigner(skey string) (*SubtreeSigner, error) {
+func NewMLDSASigner(skey string) (SubtreeSigner, error) {
 	priv1, skey, _ := strings.Cut(skey, "+")
 	priv2, skey, _ := strings.Cut(skey, "+")
 	name, skey, _ := strings.Cut(skey, "+")
@@ -77,8 +76,8 @@ func NewMLDSASigner(skey string) (*SubtreeSigner, error) {
 
 // newMLDSASigner returns a signer for MLDSA cosignature v1, with the provided
 // name and key bytes in the format: algo || private key.
-func newMLDSASigner(name string, keyBytes []byte) (*SubtreeSigner, error) {
-	s := &SubtreeSigner{name: name}
+func newMLDSASigner(name string, keyBytes []byte) (*subtreeSigner, error) {
+	s := &subtreeSigner{name: name}
 	if len(keyBytes) != mldsa.PrivateKeySize {
 		return nil, errSignerID
 	}
@@ -112,7 +111,7 @@ func newMLDSASigner(name string, keyBytes []byte) (*SubtreeSigner, error) {
 		sig = append(sig, sB...)
 		return sig, nil
 	}
-	s.verifier = &SubtreeVerifier{
+	s.verifier = &subtreeVerifier{
 		name:       name,
 		keyHash:    s.hash,
 		verifyNote: func(msg, sig []byte) bool { return verifyMLDSACosigV1(pubKey, name)(msg, sig) },
@@ -125,7 +124,7 @@ func newMLDSASigner(name string, keyBytes []byte) (*SubtreeSigner, error) {
 }
 
 // NewMLDSAVerifier constructs a verifier for MLDSA cosignature v1.
-func NewMLDSAVerifier(vkey string) (*SubtreeVerifier, error) {
+func NewMLDSAVerifier(vkey string) (SubtreeVerifier, error) {
 	name, vkey, _ := strings.Cut(vkey, "+")
 	hash16, key64, _ := strings.Cut(vkey, "+")
 	keyBytes, err := base64.StdEncoding.DecodeString(key64)
@@ -137,7 +136,7 @@ func NewMLDSAVerifier(vkey string) (*SubtreeVerifier, error) {
 		return nil, errVerifierID
 	}
 
-	v := &SubtreeVerifier{
+	v := &subtreeVerifier{
 		name:    name,
 		keyHash: keyHashMLDSA(name, keyBytes),
 	}
@@ -162,7 +161,7 @@ func NewMLDSAVerifier(vkey string) (*SubtreeVerifier, error) {
 // - an ML-DSA-44 cosignature/v1 encoded signer key (algo ID 0x06)
 //
 // See https://c2sp.org/tlog-cosignature for more details.
-func NewSignerForCosignatureV1(skey string) (*Signer, error) {
+func NewSignerForCosignatureV1(skey string) (Signer, error) {
 	priv1, skey, _ := strings.Cut(skey, "+")
 	priv2, skey, _ := strings.Cut(skey, "+")
 	name, skey, _ := strings.Cut(skey, "+")
@@ -172,7 +171,7 @@ func NewSignerForCosignatureV1(skey string) (*Signer, error) {
 		return nil, errSignerID
 	}
 
-	s := &Signer{name: name}
+	s := &signer{name: name}
 
 	alg, key := key[0], key[1:]
 	switch alg {
@@ -434,72 +433,76 @@ var (
 )
 
 // Signer is a note.Signer which also provides access to the corresponding Verifier.
-type Signer struct {
+type Signer interface {
+	note.Signer
+	Verifier() note.Verifier
+}
+
+// signer is a concrete implementation of the extended Signer interface above.
+type signer struct {
 	name   string
 	hash   uint32
 	sign   func([]byte) ([]byte, error)
 	verify func(msg, sig []byte) bool
 }
 
-func (s *Signer) Name() string                    { return s.name }
-func (s *Signer) KeyHash() uint32                 { return s.hash }
-func (s *Signer) Sign(msg []byte) ([]byte, error) { return s.sign(msg) }
+func (s *signer) Name() string                    { return s.name }
+func (s *signer) KeyHash() uint32                 { return s.hash }
+func (s *signer) Sign(msg []byte) ([]byte, error) { return s.sign(msg) }
 
-func (s *Signer) Verifier() *Verifier {
-	return &Verifier{
+func (s *signer) Verifier() note.Verifier {
+	return &verifier{
 		name:    s.name,
 		keyHash: s.hash,
 		v:       s.verify,
 	}
 }
 
-// Verifier is a note.Verifier.
-type Verifier struct {
-	name    string
-	keyHash uint32
-	v       func([]byte, []byte) bool
+// SubtreeSigner is a note.Signer that can additionally produce subtree signatures, and
+// provide access to a similarly capable verifier.
+type SubtreeSigner interface {
+	note.Signer
+	SignSubtree(timestamp uint64, logOrigin string, start, end uint64, root []byte) ([]byte, error)
+	Verifier() SubtreeVerifier
 }
 
-func (v *Verifier) Name() string                { return v.name }
-func (v *Verifier) KeyHash() uint32             { return v.keyHash }
-func (v *Verifier) Verify(msg, sig []byte) bool { return v.v(msg, sig) }
-
-// SubtreeSigner is a signer that can produce both note and subtree signatures.
-type SubtreeSigner struct {
+// subtreeSigner is a concrete implementation of the extended SubtreeSigner interface above.
+type subtreeSigner struct {
 	name        string
 	hash        uint32
 	signNote    func([]byte) ([]byte, error)
 	signSubtree func(timestamp uint64, logOrigin string, start, end uint64, root []byte) ([]byte, error)
-	verifier    *SubtreeVerifier
+	verifier    *subtreeVerifier
 }
 
-func (s *SubtreeSigner) Name() string                    { return s.name }
-func (s *SubtreeSigner) KeyHash() uint32                 { return s.hash }
-func (s *SubtreeSigner) Sign(msg []byte) ([]byte, error) { return s.signNote(msg) }
-func (s *SubtreeSigner) SignSubtree(timestamp uint64, logOrigin string, start, end uint64, root []byte) ([]byte, error) {
+func (s *subtreeSigner) Name() string                    { return s.name }
+func (s *subtreeSigner) KeyHash() uint32                 { return s.hash }
+func (s *subtreeSigner) Sign(msg []byte) ([]byte, error) { return s.signNote(msg) }
+func (s *subtreeSigner) SignSubtree(timestamp uint64, logOrigin string, start, end uint64, root []byte) ([]byte, error) {
 	return s.signSubtree(timestamp, logOrigin, start, end, root)
 }
-
-func (s *SubtreeSigner) Verifier() *SubtreeVerifier {
-	return s.verifier
-}
+func (s *subtreeSigner) Verifier() SubtreeVerifier { return s.verifier }
 
 // SubtreeVerifier is a verifier that supports the verification of subtree signatures.
-//
-// This struct implements the note.Verifier interface to facilitate cosigning operations
+type SubtreeVerifier interface {
+	note.Verifier
+	VerifySubtree(timestamp uint64, logOrigin string, start, end uint64, hash []byte, sig []byte) bool
+}
+
+// subtreeVerifier implements the note.Verifier interface to facilitate cosigning operations
 // against tree roots represented as checkpoints, but it can also be used to verify
 // arbitrary subtree roots using the VerifySubtree method.
-type SubtreeVerifier struct {
+type subtreeVerifier struct {
 	name          string
 	keyHash       uint32
 	verifyNote    func([]byte, []byte) bool
 	verifySubtree func(timestamp uint64, logOrigin string, start, end uint64, hash []byte, sig []byte) bool
 }
 
-func (v *SubtreeVerifier) Name() string                { return v.name }
-func (v *SubtreeVerifier) KeyHash() uint32             { return v.keyHash }
-func (v *SubtreeVerifier) Verify(msg, sig []byte) bool { return v.verifyNote(msg, sig) }
-func (v *SubtreeVerifier) VerifySubtree(timestamp uint64, logOrigin string, start, end uint64, hash []byte, sig []byte) bool {
+func (v *subtreeVerifier) Name() string                { return v.name }
+func (v *subtreeVerifier) KeyHash() uint32             { return v.keyHash }
+func (v *subtreeVerifier) Verify(msg, sig []byte) bool { return v.verifyNote(msg, sig) }
+func (v *subtreeVerifier) VerifySubtree(timestamp uint64, logOrigin string, start, end uint64, hash []byte, sig []byte) bool {
 	return v.verifySubtree(timestamp, logOrigin, start, end, hash, sig)
 }
 
