@@ -14,6 +14,9 @@
 
 // Package log provides basic support for the common log checkpoint and proof
 // format described by the README in this directory.
+//
+// For converting classic RFC 6962 Signed Tree Heads (STH) to this checkpoint
+// format, see note.RFC6962STHToCheckpoint in the github.com/transparency-dev/formats/note package.
 package log
 
 import (

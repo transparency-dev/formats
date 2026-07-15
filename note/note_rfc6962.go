@@ -48,7 +48,7 @@ func RFC6962VerifierString(logURL string, pubK crypto.PublicKey) (string, error)
 	return fmt.Sprintf("%s+%08x+%s", name, hash, base64.StdEncoding.EncodeToString(append([]byte{algRFC6962STH}, pubSer...))), nil
 }
 
-// NewRFC6962Verifier creates a note verifier for Sunlight/RFC6962 checkpoint signatures.
+// NewRFC6962Verifier creates a note verifier for Static CT/RFC6962 checkpoint signatures.
 func NewRFC6962Verifier(vkey string) (note.Verifier, error) {
 	name, vkey, _ := strings.Cut(vkey, "+")
 	hash16, key64, _ := strings.Cut(vkey, "+")
@@ -90,7 +90,7 @@ type signedTreeHead struct {
 }
 
 // RFC6962STHToCheckpoint converts the provided RFC6962 JSON representation of a CT Signed Tree Head structure to
-// a sunlight style signed checkpoint.
+// a Static CT style signed checkpoint.
 // The passed in verifier must be an RFC6929Verifier containing the correct details for the log which signed the STH.
 func RFC6962STHToCheckpoint(j []byte, v note.Verifier) ([]byte, error) {
 	var sth signedTreeHead
@@ -134,11 +134,11 @@ func rfc6962Keyhash(name string, logID [32]byte) uint32 {
 	return binary.BigEndian.Uint32(r)
 }
 
-// rfc6962LogName returns a sunlight checkpoint compatible log name from the
+// rfc6962LogName returns a Static CT checkpoint compatible log name from the
 // passed in CT log root URL.
 //
 // "For example, a log with submission prefix https://rome.ct.example.com/2024h1/ will use rome.ct.example.com/2024h1 as the checkpoint origin line"
-// (see https://github.com/C2SP/C2SP/blob/main/sunlight.md#checkpoints)
+// (see https://github.com/C2SP/C2SP/blob/main/static-ct-api.md#checkpoints)
 func rfc6962LogName(logURL string) string {
 	logURL = strings.ToLower(logURL)
 	logURL = strings.TrimPrefix(logURL, "http://")

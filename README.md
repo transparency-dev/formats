@@ -24,6 +24,10 @@ provided in the respective directories:
 The [`log checkpoint`](./log/README.md#checkpoint-format) represents a commitment to the
 state of a transparent log.
 
+### RFC 6962 / Certificate Transparency Interoperability
+
+For interoperability with classic RFC 6962 logs, the [`note`](./note) package provides tools to convert Signed Tree Heads (STHs) to the checkpoint format and verify their signatures. See [`note_rfc6962.go`](./note/note_rfc6962.go) for details.
+
 ## Support
 * Mailing list: https://groups.google.com/forum/#!forum/trillian-transparency
 - Slack: https://transparency-dev.slack.com/ ([invitation](https://transparency.dev/slack/))

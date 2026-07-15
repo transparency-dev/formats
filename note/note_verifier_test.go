@@ -82,7 +82,7 @@ func TestNewVerifier(t *testing.T) {
 			name: "ECDSA works",
 			key:  sigStoreKey,
 		}, {
-			name: "Sunlight works",
+			name: "Static CT works",
 			key:  "ct.googleapis.com/logs/us1/argon2024+7deb49d0+BTBZMBMGByqGSM49AgEGCCqGSM49AwEHA0IABB25bKnLaZTFXOa2pgO70rjcVEMXKJkMBgFQHZ1kwFlGK9zIAx0FtC2oCfeZQe0E++VXuiYE9hFSzhRlOy92K8A=",
 		},
 	} {
