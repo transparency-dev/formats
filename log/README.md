@@ -86,6 +86,14 @@ If you plan to use `otherdata` in your log, see the section on [merging checkpoi
 The first signature on a checkpoint should be from the log which issued it, but there MUST NOT
 be more than one signature from a log identity present on the checkpoint.
 
+## RFC 6962 (Certificate Transparency) Interoperability
+
+If you need to work with classic RFC 6962 CT logs, you can convert their JSON Signed Tree Heads (STHs) to this checkpoint format.
+
+The conversion and verification tools are located in the [`note`](../note) package:
+*   [`note.RFC6962STHToCheckpoint`](../note/note_rfc6962.go) converts an STH to a signed checkpoint.
+*   [`note.NewRFC6962Verifier`](../note/note_rfc6962.go) creates a verifier for these checkpoint signatures.
+
 ## Example
 
 An annotated example signed checkpoint in this format is shown below:
