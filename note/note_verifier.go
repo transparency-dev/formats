@@ -71,54 +71,6 @@ func NewEd25519SignerVerifier(skey string) (note.Signer, note.Verifier, error) {
 	return s, v, err
 }
 
-// NewVerifier returns a verifier for the given key, if the key's algo is known.
-func NewVerifier(key string) (note.Verifier, error) {
-	parts := strings.SplitN(key, "+", 3)
-	if got, want := len(parts), 3; got != want {
-		return nil, fmt.Errorf("key has %d parts, expected %d: %q", got, want, key)
-	}
-	keyBytes, err := base64.StdEncoding.DecodeString(parts[2])
-	if err != nil {
-		return nil, fmt.Errorf("key has invalid base64 %q: %v", parts[2], err)
-	}
-	if len(keyBytes) < 2 {
-		return nil, fmt.Errorf("invalid key, key bytes too short")
-	}
-
-	switch keyBytes[0] {
-	case algECDSAWithSHA256:
-		return NewECDSAVerifier(key)
-	case algEd25519CosignatureV1, algMLDSA44:
-		return NewVerifierForCosignatureV1(key)
-	case algRFC6962STH:
-		return NewRFC6962Verifier(key)
-	default:
-		return note.NewVerifier(key)
-	}
-}
-
-// verifier is a note-compatible verifier.
-type verifier struct {
-	name    string
-	keyHash uint32
-	v       func(msg, sig []byte) bool
-}
-
-// Name returns the name associated with the key this verifier is based on.
-func (v *verifier) Name() string {
-	return v.name
-}
-
-// KeyHash returns a truncated hash of the key this verifier is based on.
-func (v *verifier) KeyHash() uint32 {
-	return v.keyHash
-}
-
-// Verify checks that the provided sig is valid over msg for the key this verifier is based on.
-func (v *verifier) Verify(msg, sig []byte) bool {
-	return v.v(msg, sig)
-}
-
 // NewECDSAVerifier creates a new note verifier for checking ECDSA signatures over SHA256 digests.
 // This implementation is compatible with the signature scheme used by the Sigstore Rékor Log.
 //
