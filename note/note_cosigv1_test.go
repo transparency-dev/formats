@@ -51,27 +51,27 @@ func TestSignerRoundtrip(t *testing.T) {
 
 func TestFormatMLDSASignatureV1(t *testing.T) {
 	for _, test := range []struct {
-		name string
+		name         string
 		cosignerName string
-		logOrigin string
-		wantErr bool
+		logOrigin    string
+		wantErr      bool
 	}{
 		{
-			name: "ok",
+			name:         "ok",
 			cosignerName: "mldsa",
-			logOrigin: "test",
+			logOrigin:    "test",
 		},
 		{
-			name: "origin name too long",
+			name:         "origin name too long",
 			cosignerName: "mldsa",
-			logOrigin: strings.Repeat("t", 256),
-			wantErr: true,
+			logOrigin:    strings.Repeat("t", 256),
+			wantErr:      true,
 		},
 		{
-			name: "cosigner name too long",
-			cosignerName: "mldsa"+strings.Repeat("a", 255),
-			logOrigin: "test",
-			wantErr: true,
+			name:         "cosigner name too long",
+			cosignerName: "mldsa" + strings.Repeat("a", 255),
+			logOrigin:    "test",
+			wantErr:      true,
 		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
@@ -376,7 +376,7 @@ func TestGenerateMLDSAKey(t *testing.T) {
 			wantErr: true,
 		},
 		{
-			name: "name-too-long"+strings.Repeat("g", 255),
+			name:    "name-too-long" + strings.Repeat("g", 255),
 			wantErr: true,
 		},
 	} {

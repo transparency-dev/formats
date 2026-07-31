@@ -76,7 +76,7 @@ type Group struct {
 	// checkpoint for the group to be considered to have witnessed it.
 	// The "any" and "all" keywords are resolved to 1 and len(Members)
 	// respectively during parsing, so 1 <= Threshold <= len(Members).
-	Threshold int
+	Threshold uint
 	// Members are the names of the witnesses and groups this group is
 	// composed of. Members always refer to entries defined on earlier
 	// lines of the policy.
@@ -112,7 +112,7 @@ type TLogPolicy struct {
 // Witness keys must be tlog-cosignature verifier keys: key types 0x04
 // (Ed25519 cosignature/v1) and 0x06 (ML-DSA-44) are supported, and any
 // other key type, including plain Ed25519 (0x01), is rejected.
-// Log keys may use any note signature algorithm known to the note
+// Log keys may use any note signature algorithm known to the github.com/transparency-dev/formats/note
 // package, since tlog-checkpoint permits logs to use any note signature
 // algorithm; unknown key types are rejected.
 // Any name except "none" is accepted for witnesses and groups, including
@@ -240,7 +240,7 @@ func (p *TLogPolicy) Unmarshal(data []byte) error {
 				member[m] = true
 			}
 			defined[name] = true
-			out.Groups = append(out.Groups, Group{Name: name, Threshold: k, Members: members})
+			out.Groups = append(out.Groups, Group{Name: name, Threshold: uint(k), Members: members})
 		case "quorum":
 			if len(fs) != 2 {
 				return fmt.Errorf("invalid quorum definition: %q", line)
@@ -318,7 +318,7 @@ func (p TLogPolicy) Satisfied(checkpoint []byte) bool {
 	}
 
 	visiting := make(map[string]bool)
-	var satisfied func(name string) bool
+	var satisfied func(string) bool
 	satisfied = func(name string) bool {
 		if w, ok := witnesses[name]; ok {
 			n, err := note.Open(checkpoint, note.VerifierList(w.Verifier))
@@ -332,7 +332,7 @@ func (p TLogPolicy) Satisfied(checkpoint []byte) bool {
 		}
 		visiting[name] = true
 		defer delete(visiting, name)
-		count := 0
+		count := uint(0)
 		for _, m := range g.Members {
 			if satisfied(m) {
 				count++
@@ -341,7 +341,7 @@ func (p TLogPolicy) Satisfied(checkpoint []byte) bool {
 				}
 			}
 		}
-		return g.Threshold <= 0
+		return g.Threshold == 0
 	}
 	return satisfied(p.Quorum)
 }
