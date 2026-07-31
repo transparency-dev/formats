@@ -19,6 +19,7 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"fmt"
+	"net/url"
 	"strings"
 	"testing"
 
@@ -142,7 +143,7 @@ quorum X-and-Y
 			policy: "\n# comment\n\t # another comment\n\twitness \t w1  " + wit1_vkey +
 				"   https://w1.example.com/  \n\n  quorum\tw1",
 			want: TLogPolicy{
-				Witnesses: []Witness{{Name: "w1", VKey: wit1_vkey, URL: "https://w1.example.com/"}},
+				Witnesses: []Witness{{Name: "w1", VKey: wit1_vkey, URL: &url.URL{Scheme: "https", Host: "w1.example.com", Path: "/"}}},
 				Quorum:    "w1",
 			},
 		},
@@ -150,7 +151,7 @@ quorum X-and-Y
 			desc:   "urls optional and opaque",
 			policy: fmt.Sprintf("log %s https://log.example.com/\nwitness w1 %s\nquorum w1\n", log_vkey, wit1_vkey),
 			want: TLogPolicy{
-				Logs:      []Log{{VKey: log_vkey, URL: "https://log.example.com/"}},
+				Logs:      []Log{{VKey: log_vkey, URL: &url.URL{Scheme: "https", Host: "log.example.com", Path: "/"}}},
 				Witnesses: []Witness{{Name: "w1", VKey: wit1_vkey}},
 				Quorum:    "w1",
 			},

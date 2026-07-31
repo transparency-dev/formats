@@ -21,6 +21,7 @@ import (
 	"bytes"
 	"encoding/base64"
 	"fmt"
+	"net/url"
 	"strconv"
 	"strings"
 
@@ -48,8 +49,8 @@ type Log struct {
 	Verifier note.Verifier
 	// VKey is the log's verifier key exactly as it appeared in the policy.
 	VKey string
-	// URL is the log's optional application-specific URL, or "" if absent.
-	URL string
+	// URL is the log's optional application-specific URL, if provided.
+	URL *url.URL
 }
 
 // Witness represents a witness declaration in a policy:
@@ -62,8 +63,8 @@ type Witness struct {
 	Verifier note.Verifier
 	// VKey is the witness' verifier key exactly as it appeared in the policy.
 	VKey string
-	// URL is the witness' optional application-specific URL, or "" if absent.
-	URL string
+	// URL is the witness' optional application-specific URL, if provided.
+	URL *url.URL
 }
 
 // Group represents a group declaration in a policy:
@@ -166,7 +167,11 @@ func (p *TLogPolicy) Unmarshal(data []byte) error {
 			logKeys[string(key)] = true
 			l := Log{Verifier: v, VKey: vkey}
 			if len(fs) == 3 {
-				l.URL = fs[2]
+				u, err := url.Parse(fs[2])
+				if err != nil {
+					return fmt.Errorf("invalid log URL in %q: %w", line, err)
+				}
+				l.URL = u
 			}
 			out.Logs = append(out.Logs, l)
 		case "witness":
@@ -199,7 +204,11 @@ func (p *TLogPolicy) Unmarshal(data []byte) error {
 			witnessKeys[string(key)] = true
 			w := Witness{Name: name, Verifier: v, VKey: vkey}
 			if len(fs) == 4 {
-				w.URL = fs[3]
+				u, err := url.Parse(fs[3])
+				if err != nil {
+					return fmt.Errorf("invalid witness URL in %q: %w", line, err)
+				}
+				w.URL = u
 			}
 			defined[name] = true
 			out.Witnesses = append(out.Witnesses, w)
@@ -277,15 +286,15 @@ func (p TLogPolicy) Marshal() []byte {
 	var b bytes.Buffer
 	for _, l := range p.Logs {
 		b.WriteString("log " + l.VKey)
-		if l.URL != "" {
-			b.WriteString(" " + l.URL)
+		if l.URL != nil {
+			b.WriteString(" " + l.URL.String())
 		}
 		b.WriteByte('\n')
 	}
 	for _, w := range p.Witnesses {
 		b.WriteString("witness " + w.Name + " " + w.VKey)
-		if w.URL != "" {
-			b.WriteString(" " + w.URL)
+		if w.URL != nil {
+			b.WriteString(" " + w.URL.String())
 		}
 		b.WriteByte('\n')
 	}
