@@ -43,10 +43,10 @@ var (
 // - 0x04 ed25519 Cosignature/V1
 // - 0x06 ML-DSA-44 Cosignature/V1
 func NewSigner(skey string) (Signer, error) {
-	priv1, skey, _ := strings.Cut(skey, "+")
-	priv2, skey, _ := strings.Cut(skey, "+")
-	name, skey, _ := strings.Cut(skey, "+")
-	hash16, key64, _ := strings.Cut(skey, "+")
+	priv1, k, _ := strings.Cut(skey, "+")
+	priv2, k, _ := strings.Cut(k, "+")
+	name, k, _ := strings.Cut(k, "+")
+	hash16, key64, _ := strings.Cut(k, "+")
 	key, err := base64.StdEncoding.DecodeString(key64)
 	if priv1 != "PRIVATE" || priv2 != "KEY" || len(hash16) != 8 || err != nil || !isValidName(name) || len(key) == 0 {
 		return nil, errSignerID
