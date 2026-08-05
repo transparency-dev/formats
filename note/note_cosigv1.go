@@ -25,15 +25,6 @@ import (
 )
 
 const (
-	algEd25519              = 1
-	algECDSAWithSHA256      = 2
-	algEd25519CosignatureV1 = 4
-	algRFC6962STH           = 5
-	algMLDSA44              = 6
-)
-
-const (
-	keyHashSize   = 4
 	timestampSize = 8
 )
 
@@ -423,40 +414,9 @@ func formatMLDSACosignatureV1(cosignerName string, timestamp uint64, logOrigin s
 }
 
 var (
-	errSignerID         = errors.New("malformed signer id")
-	errSignerAlg        = errors.New("unknown signer algorithm")
-	errVerifierID       = errors.New("malformed verifier id")
-	errVerifierAlg      = errors.New("unknown verifier algorithm")
-	errInvalidHash      = errors.New("invalid key hash")
-	errMalformedSig     = errors.New("malformed signature")
 	errInvalidTimestamp = errors.New("invalid timestamp")
 )
 
-// Signer is a note.Signer which also provides access to the corresponding Verifier.
-type Signer interface {
-	note.Signer
-	Verifier() note.Verifier
-}
-
-// signer is a concrete implementation of the extended Signer interface above.
-type signer struct {
-	name   string
-	hash   uint32
-	sign   func([]byte) ([]byte, error)
-	verify func(msg, sig []byte) bool
-}
-
-func (s *signer) Name() string                    { return s.name }
-func (s *signer) KeyHash() uint32                 { return s.hash }
-func (s *signer) Sign(msg []byte) ([]byte, error) { return s.sign(msg) }
-
-func (s *signer) Verifier() note.Verifier {
-	return &verifier{
-		name:    s.name,
-		keyHash: s.hash,
-		v:       s.verify,
-	}
-}
 
 // SubtreeSigner is a note.Signer that can additionally produce subtree signatures, and
 // provide access to a similarly capable verifier.
