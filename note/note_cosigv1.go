@@ -6,6 +6,7 @@ package note
 
 import (
 	"bytes"
+	"crypto"
 	"crypto/ed25519"
 	"crypto/sha256"
 	"encoding/base64"
@@ -58,27 +59,48 @@ func NewMLDSASigner(skey string) (SubtreeSigner, error) {
 	if priv1 != "PRIVATE" || priv2 != "KEY" || len(hash16) != 8 || err != nil || !isValidName(name) || len(key) == 0 {
 		return nil, errSignerID
 	}
+	hash, err := strconv.ParseUint(hash16, 16, 32)
+	if err != nil {
+		return nil, errInvalidHash
+	}
+
 	alg, key := key[0], key[1:]
 	if alg != algMLDSA44 {
 		return nil, errSignerID
 	}
-	return newMLDSASigner(name, key)
-}
-
-// newMLDSASigner returns a signer for MLDSA cosignature v1, with the provided
-// name and key bytes in the format: algo || private key.
-func newMLDSASigner(name string, keyBytes []byte) (*subtreeSigner, error) {
-	s := &subtreeSigner{name: name}
-	if len(keyBytes) != mldsa.PrivateKeySize {
+	if len(key) != mldsa.PrivateKeySize {
 		return nil, errSignerID
 	}
-	key, err := mldsa.NewPrivateKey(mldsa.MLDSA44(), keyBytes)
+	priv, err := mldsa.NewPrivateKey(mldsa.MLDSA44(), key)
 	if err != nil {
 		return nil, err
 	}
-	pubKey := key.PublicKey()
+	s, err := NewMLDSASignerFromCrypto(name, priv)
+	if err != nil {
+		return nil, err
+	}
+	if s.KeyHash() != uint32(hash) {
+		return nil, errInvalidHash
+	}
+	return s, nil
+}
+
+// NewMLDSASignerFromCrypto returns a subtree signer for MLDSA cosignature v1 which uses an underlying crypto.Signer for cryptographic operations.
+func NewMLDSASignerFromCrypto(name string, signer crypto.Signer) (SubtreeSigner, error) {
+	if !isValidName(name) {
+		return nil, errSignerID
+	}
+	pubKey, ok := signer.Public().(*mldsa.PublicKey)
+	if !ok {
+		return nil, errSignerAlg
+	}
 	pubKeyBytes := append([]byte{algMLDSA44}, pubKey.Bytes()...)
-	s.hash = keyHashMLDSA(name, pubKeyBytes)
+
+	s := &subtreeSigner{
+		name: name,
+		hash: keyHashMLDSA(name, pubKeyBytes),
+	}
+
 	s.signNote = func(msg []byte) ([]byte, error) {
 		t := uint64(time.Now().Unix())
 		c := &log.Checkpoint{}
@@ -92,7 +114,7 @@ func newMLDSASigner(name string, keyBytes []byte) (*subtreeSigner, error) {
 		if err != nil {
 			return nil, err
 		}
-		sB, err := key.Sign(nil, m, nil)
+		sB, err := signer.Sign(nil, m, nil)
 		if err != nil {
 			return nil, err
 		}
@@ -192,13 +214,20 @@ func NewSignerForCosignatureV1(skey string) (Signer, error) {
 		s.verify = verifyEd25519CosigV1(pubkey[1:])
 
 	case algMLDSA44:
-		stSigner, err := newMLDSASigner(name, key)
+		if len(key) != mldsa.PrivateKeySize {
+			return nil, errSignerID
+		}
+		priv, err := mldsa.NewPrivateKey(mldsa.MLDSA44(), key)
+		if err != nil {
+			return nil, err
+		}
+		stSigner, err := NewMLDSASignerFromCrypto(name, priv)
 		if err != nil {
 			return nil, err
 		}
 		s.sign = stSigner.Sign
-		s.verify = stSigner.verifier.verifyNote
-		s.hash = stSigner.hash
+		s.verify = stSigner.Verifier().Verify
+		s.hash = stSigner.KeyHash()
 	}
 
 	return s, nil
@@ -373,7 +402,7 @@ func formatEd25519CosignatureV1(t uint64, msg []byte) ([]byte, error) {
 	if lines := bytes.Split(msg, []byte("\n")); len(lines) < 3 {
 		return nil, errors.New("cosigned note format invalid")
 	}
-	return []byte(fmt.Sprintf("cosignature/v1\ntime %d\n%s", t, msg)), nil
+	return fmt.Appendf(nil, "cosignature/v1\ntime %d\n%s", t, msg), nil
 }
 
 func formatMLDSACosignatureV1(cosignerName string, timestamp uint64, logOrigin string, start, end uint64, hash []byte) ([]byte, error) {
@@ -416,7 +445,6 @@ func formatMLDSACosignatureV1(cosignerName string, timestamp uint64, logOrigin s
 var (
 	errInvalidTimestamp = errors.New("invalid timestamp")
 )
-
 
 // SubtreeSigner is a note.Signer that can additionally produce subtree signatures, and
 // provide access to a similarly capable verifier.
