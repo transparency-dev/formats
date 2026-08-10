@@ -5,11 +5,15 @@
 package note
 
 import (
+	"crypto"
+	"crypto/ecdsa"
+	"crypto/elliptic"
 	"crypto/rand"
 	"strings"
 	"testing"
 	"time"
 
+	"filippo.io/mldsa"
 	"golang.org/x/mod/sumdb/note"
 )
 
@@ -426,4 +430,75 @@ func mustGenerateMLDSAKey(t *testing.T, name string) (string, string) {
 		t.Fatalf("GenerateMLDSAKey(%q): %v", name, err)
 	}
 	return skey, vkey
+}
+
+func TestMLDSASignerFromCrypto(t *testing.T) {
+	const name = "mldsa-test"
+
+	for _, test := range []struct {
+		name    string
+		signer  crypto.Signer
+		wantErr bool
+	}{
+		{
+			name:   "valid MLDSA signer",
+			signer: mustMLDSASigner(t),
+		},
+		{
+			name:    "invalid signer (not MLDSA)",
+			signer:  mustECDSASigner(t),
+			wantErr: true,
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			signer, err := NewMLDSASignerFromCrypto(name, test.signer)
+			if gotErr := err != nil; gotErr != test.wantErr {
+				t.Fatalf("NewMLDSASignerFromCrypto: got err %v, wantErr %v", err, test.wantErr)
+			}
+			if test.wantErr {
+				return
+			}
+
+			if signer.Name() != name {
+				t.Errorf("signer.Name() = %q, want %q", signer.Name(), name)
+			}
+
+			origin := "test-log"
+			var start uint64 = 0
+			var end uint64 = 10
+			root := make([]byte, 32)
+			if _, err := rand.Read(root); err != nil {
+				t.Fatal(err)
+			}
+			timestamp := uint64(time.Now().Unix())
+
+			sig, err := signer.SignSubtree(timestamp, origin, start, end, root)
+			if err != nil {
+				t.Fatalf("SignSubtree: %v", err)
+			}
+
+			verifier := signer.Verifier()
+			if !verifier.VerifySubtree(timestamp, origin, start, end, root, sig) {
+				t.Error("VerifySubtree failed")
+			}
+		})
+	}
+}
+
+func mustMLDSASigner(t *testing.T) crypto.Signer {
+	t.Helper()
+	mldsaK, err := mldsa.GenerateKey(mldsa.MLDSA44())
+	if err != nil {
+		t.Fatal(err)
+	}
+	return mldsaK
+}
+
+func mustECDSASigner(t *testing.T) crypto.Signer {
+	t.Helper()
+	ecdsaK, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return ecdsaK
 }
