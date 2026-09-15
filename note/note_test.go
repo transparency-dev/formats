@@ -7,6 +7,7 @@ package note
 import (
 	"fmt"
 	"testing"
+
 	"golang.org/x/mod/sumdb/note"
 )
 
@@ -22,9 +23,9 @@ func TestSignerVerifier(t *testing.T) {
 
 	for _, test := range []struct {
 		name string
-		s string
-		v string
-	} {
+		s    string
+		v    string
+	}{
 		{name: "note", s: ns, v: nv},
 		{name: "mldsa", s: ms, v: mv},
 	} {

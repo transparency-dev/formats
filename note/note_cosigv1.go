@@ -128,7 +128,7 @@ func NewMLDSASignerFromCrypto(name string, signer crypto.Signer) (SubtreeSigner,
 		name:       name,
 		keyHash:    s.hash,
 		verifyNote: func(msg, sig []byte) bool { return verifyMLDSACosigV1(pubKey, name)(msg, sig) },
-		verifySubtree: func(timestamp uint64, logOrigin string, start, end uint64, hash []byte, sig []byte) bool {
+		verifySubtree: func(logOrigin string, start, end uint64, hash []byte, sig []byte) bool {
 			return verifyMLDSACosigV1Subtree(pubKey, name)(logOrigin, start, end, hash, sig)
 		},
 	}
@@ -159,7 +159,7 @@ func NewMLDSAVerifier(vkey string) (SubtreeVerifier, error) {
 		return nil, err
 	}
 	v.verifyNote = func(msg, sig []byte) bool { return verifyMLDSACosigV1(pubKey, name)(msg, sig) }
-	v.verifySubtree = func(timestamp uint64, logOrigin string, start, end uint64, hash []byte, sig []byte) bool {
+	v.verifySubtree = func(logOrigin string, start, end uint64, hash []byte, sig []byte) bool {
 		return verifyMLDSACosigV1Subtree(pubKey, name)(logOrigin, start, end, hash, sig)
 	}
 	return v, nil
@@ -329,6 +329,23 @@ func CoSigV1Timestamp(s note.Signature) (time.Time, error) {
 	return time.Unix(int64(binary.BigEndian.Uint64(r)), 0), nil
 }
 
+// SubtreeTimestamp returns the embedded timestamp in a signature from SignSubtree.
+func SubtreeTimestamp(s []byte) (time.Time, error) {
+	sigLine, ok := strings.CutPrefix(string(s), "— ")
+	if !ok {
+		return time.UnixMilli(0), errMalformedSig
+	}
+	sigLine, ok = strings.CutSuffix(sigLine, "\n")
+	if !ok {
+		return time.UnixMilli(0), errMalformedSig
+	}
+	_, sigB64, ok := strings.Cut(sigLine, " ")
+	if !ok {
+		return time.UnixMilli(0), errMalformedSig
+	}
+	return CoSigV1Timestamp(note.Signature{Base64: sigB64})
+}
+
 // verifyEd25519CosigV1 returns a verify function based on key.
 func verifyEd25519CosigV1(key []byte) func(msg, sig []byte) bool {
 	return func(msg, sig []byte) bool {
@@ -450,7 +467,9 @@ var (
 // provide access to a similarly capable verifier.
 type SubtreeSigner interface {
 	note.Signer
+	// SignSubtree returns a note-style signature line over the subtree described by the provided arguments.
 	SignSubtree(timestamp uint64, logOrigin string, start, end uint64, root []byte) ([]byte, error)
+	// Verifier returns a SubtreeVerifier instance which is able to verify signatures created by this signer instance.
 	Verifier() SubtreeVerifier
 }
 
@@ -467,14 +486,28 @@ func (s *subtreeSigner) Name() string                    { return s.name }
 func (s *subtreeSigner) KeyHash() uint32                 { return s.hash }
 func (s *subtreeSigner) Sign(msg []byte) ([]byte, error) { return s.signNote(msg) }
 func (s *subtreeSigner) SignSubtree(timestamp uint64, logOrigin string, start, end uint64, root []byte) ([]byte, error) {
-	return s.signSubtree(timestamp, logOrigin, start, end, root)
+	stSig, err := s.signSubtree(timestamp, logOrigin, start, end, root)
+	if err != nil {
+		return nil, err
+	}
+	// signSubtree gives us back timestamp||signature, so we need to prepend keyhash
+	// and format into a note signature.
+	sig := make([]byte, 0, keyHashSize+len(stSig))
+	sig = binary.BigEndian.AppendUint32(sig, s.KeyHash())
+	sig = append(sig, stSig...)
+
+	res := fmt.Appendf(nil, "— %s %s\n", s.name, base64.StdEncoding.EncodeToString(sig))
+	return res, nil
 }
 func (s *subtreeSigner) Verifier() SubtreeVerifier { return s.verifier }
 
 // SubtreeVerifier is a verifier that supports the verification of subtree signatures.
 type SubtreeVerifier interface {
 	note.Verifier
-	VerifySubtree(timestamp uint64, logOrigin string, start, end uint64, hash []byte, sig []byte) bool
+	// VerifySubtree verifies note-formatted signatures over the provided subtree arguments.
+	// Note that sig MUST be a valid note-formatted signature line, starting with "— " and ending
+	// with a newline.
+	VerifySubtree(logOrigin string, start, end uint64, hash []byte, sig []byte) bool
 }
 
 // subtreeVerifier implements the note.Verifier interface to facilitate cosigning operations
@@ -484,14 +517,39 @@ type subtreeVerifier struct {
 	name          string
 	keyHash       uint32
 	verifyNote    func([]byte, []byte) bool
-	verifySubtree func(timestamp uint64, logOrigin string, start, end uint64, hash []byte, sig []byte) bool
+	verifySubtree func(logOrigin string, start, end uint64, hash []byte, sig []byte) bool
 }
 
 func (v *subtreeVerifier) Name() string                { return v.name }
 func (v *subtreeVerifier) KeyHash() uint32             { return v.keyHash }
 func (v *subtreeVerifier) Verify(msg, sig []byte) bool { return v.verifyNote(msg, sig) }
-func (v *subtreeVerifier) VerifySubtree(timestamp uint64, logOrigin string, start, end uint64, hash []byte, sig []byte) bool {
-	return v.verifySubtree(timestamp, logOrigin, start, end, hash, sig)
+func (v *subtreeVerifier) VerifySubtree(logOrigin string, start, end uint64, hash []byte, sig []byte) bool {
+	sigLine, ok := strings.CutPrefix(string(sig), "— ")
+	if !ok {
+		return false
+	}
+	sigLine, ok = strings.CutSuffix(sigLine, "\n")
+	if !ok {
+		return false
+	}
+	name, sigB64, ok := strings.Cut(sigLine, " ")
+	if !ok {
+		return false
+	}
+	sigRaw, err := base64.StdEncoding.DecodeString(sigB64)
+	if err != nil || len(sigRaw) != keyHashSize+timestampSize+mldsa.MLDSA44SignatureSize {
+		return false
+	}
+	if name != v.name || binary.BigEndian.Uint32(sigRaw[:keyHashSize]) != v.keyHash {
+		return false
+	}
+	sigRaw = sigRaw[keyHashSize:]
+	t := binary.BigEndian.Uint64(sigRaw[:timestampSize])
+	// Timestamp must be zero if start > 0.
+	if start != 0 && t != 0 {
+		return false
+	}
+	return v.verifySubtree(logOrigin, start, end, hash, sigRaw)
 }
 
 // isValidName reports whether name is valid.
