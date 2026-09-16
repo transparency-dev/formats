@@ -6,11 +6,12 @@ package note
 
 import (
 	"crypto/ed25519"
+	"encoding/base64"
 	"errors"
 	"fmt"
-	"strings"
 	"strconv"
-	"encoding/base64"
+	"strings"
+
 	"golang.org/x/mod/sumdb/note"
 )
 
@@ -29,13 +30,13 @@ const (
 )
 
 var (
-	errSignerID         = errors.New("malformed signer id")
-	errSignerAlg        = errors.New("unknown signer algorithm")
-	errVerifierID       = errors.New("malformed verifier id")
-	errVerifierAlg      = errors.New("unknown verifier algorithm")
-	errInvalidHash      = errors.New("invalid key hash")
-	errMalformedSig     = errors.New("malformed signature")
-	errSignerHash		= errors.New("invalid verifier hash")
+	errSignerID     = errors.New("malformed signer id")
+	errSignerAlg    = errors.New("unknown signer algorithm")
+	errVerifierID   = errors.New("malformed verifier id")
+	errVerifierAlg  = errors.New("unknown verifier algorithm")
+	errInvalidHash  = errors.New("invalid key hash")
+	errMalformedSig = errors.New("malformed signature")
+	errSignerHash   = errors.New("invalid verifier hash")
 )
 
 // NewSigner returns a new Signer for keys with the following algorithms:
@@ -171,5 +172,3 @@ func (v *verifier) KeyHash() uint32 {
 func (v *verifier) Verify(msg, sig []byte) bool {
 	return v.v(msg, sig)
 }
-
-
