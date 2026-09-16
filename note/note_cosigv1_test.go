@@ -9,6 +9,7 @@ import (
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
+	"crypto/sha256"
 	"encoding/base64"
 	"strings"
 	"testing"
@@ -80,7 +81,8 @@ func TestFormatMLDSASignatureV1(t *testing.T) {
 		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			_, err := formatMLDSACosignatureV1(test.cosignerName, 0, test.logOrigin, 0, 0, []byte{})
+			root := sha256.Sum256([]byte("blah"))
+			_, err := formatMLDSACosignatureV1(test.cosignerName, 0, test.logOrigin, 0, 0, root[:])
 			if gotErr := err != nil; gotErr != test.wantErr {
 				t.Fatalf("formatMLDSACosignatureV1: got %v", err)
 			}
@@ -233,7 +235,7 @@ func TestCoSigV1Timestamp(t *testing.T) {
 		{
 			name:     "works",
 			sig:      note.Signature{Base64: "ZGhGuQAAAABm/qTPeyKXD+R2rzyQsxPiP8mXum7qq/iF0u4vanlqJyocWODBt97w9uL+8qT7S5gxEHWWOworDcFiEBYJXORmnFBOBA=="},
-			wantTime: time.Unix(1727964367, 0),
+			wantTime: time.Unix(1727964367, 0).UTC(),
 		}, {
 			name:    "wrong type of signature",
 			sig:     note.Signature{Base64: "eQjRQm6eSKzFoiYalgwCPXu2y3ijtg68is9M46JKxuZB+dRfTmeQeDBoXnvxZx2ugnkyV+MUMLXpWs1hPb/W/4xkNQY="},
@@ -252,7 +254,42 @@ func TestCoSigV1Timestamp(t *testing.T) {
 				return
 			}
 			if gotTime != test.wantTime {
-				t.Fatalf("got time %v, want %v", gotTime.UnixMilli(), test.wantTime.UnixMilli())
+				t.Fatalf("got time %v, want %v", gotTime, test.wantTime)
+			}
+		})
+	}
+}
+
+func TestCosignatureTimestamp(t *testing.T) {
+	for _, test := range []struct {
+		name     string
+		sig      note.Signature
+		wantErr  bool
+		wantTime uint64
+	}{
+		{
+			name:     "works",
+			sig:      note.Signature{Base64: "ZGhGuQAAAABm/qTPeyKXD+R2rzyQsxPiP8mXum7qq/iF0u4vanlqJyocWODBt97w9uL+8qT7S5gxEHWWOworDcFiEBYJXORmnFBOBA=="},
+			wantTime: 1727964367,
+		}, {
+			name:    "wrong type of signature",
+			sig:     note.Signature{Base64: "eQjRQm6eSKzFoiYalgwCPXu2y3ijtg68is9M46JKxuZB+dRfTmeQeDBoXnvxZx2ugnkyV+MUMLXpWs1hPb/W/4xkNQY="},
+			wantErr: true,
+		}, {
+			name:    "gibberish",
+			sig:     note.Signature{Base64: "5%/$!\n 2"},
+			wantErr: true,
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			gotTime, err := CosignatureTimestamp(test.sig)
+			if gotErr := err != nil; gotErr != test.wantErr {
+				t.Fatalf("got error %q, want err: %v", err, test.wantErr)
+			} else if gotErr {
+				return
+			}
+			if gotTime != test.wantTime {
+				t.Fatalf("got time %v, want %v", gotTime, test.wantTime)
 			}
 		})
 	}
@@ -326,20 +363,14 @@ func TestSubtreeRoundtrip(t *testing.T) {
 	if _, err := rand.Read(root); err != nil {
 		t.Fatal(err)
 	}
-	timestamp := time.Now().Truncate(time.Second)
 
-	sig, err := signer.SignSubtree(uint64(timestamp.Unix()), origin, start, end, root)
+	sig, err := signer.SignSubtree(origin, start, end, root)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	if !verifier.VerifySubtree(origin, start, end, root, sig) {
 		t.Fatalf("Failed to verify valid subtree signature %q", sig)
-	}
-	if gotTimestamp, err := SubtreeTimestamp(sig); err != nil {
-		t.Fatalf("Failed to extract timestamp from signature: %v", err)
-	} else if gotTimestamp != timestamp {
-		t.Fatalf("Signature timestamp %v != expected timestamp %v", gotTimestamp, timestamp)
 	}
 
 	// Test failure cases
@@ -351,25 +382,6 @@ func TestSubtreeRoundtrip(t *testing.T) {
 
 	if verifier.VerifySubtree("wrong origin", start, end, root, sig) {
 		t.Error("VerifySubtree succeeded with wrong origin")
-	}
-}
-
-func TestMLDSAInvalidTimestamp(t *testing.T) {
-	skey, _ := mustGenerateMLDSAKey(t, "mldsa")
-	signer, err := NewMLDSASigner(skey)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	origin := "test-log"
-	var start uint64 = 10 // > 0
-	var end uint64 = 20
-	root := make([]byte, 32)
-	timestamp := uint64(time.Now().Unix()) // > 0
-
-	_, err = signer.SignSubtree(timestamp, origin, start, end, root)
-	if err == nil {
-		t.Error("Expected error for invalid timestamp (start > 0 && timestamp > 0), got nil")
 	}
 }
 
@@ -476,9 +488,7 @@ func TestMLDSASignerFromCrypto(t *testing.T) {
 			if _, err := rand.Read(root); err != nil {
 				t.Fatal(err)
 			}
-			timestamp := time.Now().Truncate(time.Second)
-
-			sig, err := signer.SignSubtree(uint64(timestamp.Unix()), origin, start, end, root)
+			sig, err := signer.SignSubtree(origin, start, end, root)
 			if err != nil {
 				t.Fatalf("SignSubtree: %v", err)
 			}
@@ -486,11 +496,6 @@ func TestMLDSASignerFromCrypto(t *testing.T) {
 			verifier := signer.Verifier()
 			if !verifier.VerifySubtree(origin, start, end, root, sig) {
 				t.Fatal("Failed to verify valid subtree signature")
-			}
-			if gotTimestamp, err := SubtreeTimestamp(sig); err != nil {
-				t.Fatalf("Failed to extract timestamp from signature: %v", err)
-			} else if gotTimestamp != timestamp {
-				t.Fatalf("Signature timestamp %v != expected timestamp %v", gotTimestamp, timestamp)
 			}
 		})
 	}
@@ -505,7 +510,6 @@ func TestMLDSAVerifyTorchwood(t *testing.T) {
 	root, _ := base64.StdEncoding.DecodeString("E7ERCtFloiK1fdb+B6/dLG0pM1nmIR0ETKBSauCjtVw=")
 
 	start, end := uint64(8), uint64(13)
-	timestamp := time.Unix(0, 0)
 	origin := "example.com/log"
 
 	v, err := NewMLDSAVerifier(vkey)
@@ -515,11 +519,6 @@ func TestMLDSAVerifyTorchwood(t *testing.T) {
 
 	if !v.VerifySubtree(origin, start, end, root, sig) {
 		t.Fatal("Failed to verify valid subtree signature")
-	}
-	if gotTimestamp, err := SubtreeTimestamp(sig); err != nil {
-		t.Fatalf("Failed to extract timestamp from signature: %v", err)
-	} else if gotTimestamp != timestamp {
-		t.Fatalf("Signature timestamp %v != expected timestamp %v", gotTimestamp, timestamp)
 	}
 }
 

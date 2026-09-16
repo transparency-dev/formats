@@ -5,6 +5,8 @@
 package note
 
 import (
+	"crypto/sha256"
+	"encoding/base64"
 	"fmt"
 	"testing"
 
@@ -38,7 +40,8 @@ func TestSignerVerifier(t *testing.T) {
 			if err != nil {
 				t.Fatalf("NewVerifier: %v", err)
 			}
-			checkRoundTrip(t, fmt.Sprintf("%s\n0\nblah\n", test.name), ns, nv)
+			root := sha256.Sum256([]byte("blah"))
+			checkRoundTrip(t, fmt.Sprintf("%s\n0\n%s\n", test.name, base64.StdEncoding.EncodeToString(root[:])), ns, nv)
 		})
 	}
 }
@@ -51,7 +54,7 @@ func checkRoundTrip(t *testing.T, msg string, s note.Signer, v note.Verifier) {
 	}
 	n, err := note.Open(signed, note.VerifierList(v))
 	if err != nil {
-		t.Errorf("%s failed to open: %v", msg, err)
+		t.Fatalf("%s failed to open: %v", msg, err)
 	}
 	if n.Text != msg {
 		t.Errorf("got %q want %q", n.Text, msg)
