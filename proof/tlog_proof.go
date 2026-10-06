@@ -68,7 +68,7 @@ func (p *TLogProof) Unmarshal(data []byte) error {
 	var extra []byte
 	if b.Scan(); strings.HasPrefix(b.Text(), "extra ") {
 		e, _ := strings.CutPrefix(b.Text(), "extra ")
-		extra, err = base64.StdEncoding.DecodeString(e)
+		extra, err = base64.StdEncoding.Strict().DecodeString(e)
 		if err != nil {
 			return fmt.Errorf("tlog proof extra data not base64 encoded: %w", err)
 		}
@@ -90,7 +90,7 @@ func (p *TLogProof) Unmarshal(data []byte) error {
 		if b.Text() == "" {
 			break
 		}
-		hash, err := base64.StdEncoding.DecodeString(b.Text())
+		hash, err := base64.StdEncoding.Strict().DecodeString(b.Text())
 		if err != nil {
 			return fmt.Errorf("tlog proof hash not base64 encoded: %w", err)
 		}
