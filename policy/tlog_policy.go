@@ -20,8 +20,10 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"net/url"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -307,13 +309,98 @@ func (p TLogPolicy) Marshal() []byte {
 
 // Satisfied returns true if the checkpoint provided is cosigned by
 // witnesses according to the policy's quorum rule.
-// This will return false if there are insufficient cosignatures, and also
-// if the checkpoint cannot be read as a valid note. It is up to the caller
-// to ensure that the input value represents a valid note.
+// This will return false if there are insufficient cosignatures, if any
+// cosignature from a witness in the policy is invalid, and also if the
+// checkpoint cannot be read as a valid note. It is up to the caller to
+// ensure that the input value represents a valid note.
 //
 // Note that Satisfied does not require a log signature; use Verify to
 // apply the policy's full checkpoint validity rule.
 func (p TLogPolicy) Satisfied(checkpoint []byte) bool {
+	if p.Quorum == quorumNone {
+		return true
+	}
+	vs := make([]note.Verifier, 0, len(p.Witnesses))
+	for _, w := range p.Witnesses {
+		vs = append(vs, w.Verifier)
+	}
+	n, err := note.Open(checkpoint, note.VerifierList(vs...))
+	if err != nil {
+		return false
+	}
+	return p.quorumMet(n.Sigs)
+}
+
+// Verify applies the policy's checkpoint validity rule: the provided
+// checkpoint must be a note signed by any one of the policy's logs, with
+// an origin line matching that log's key name, and it must be cosigned by
+// witnesses according to the quorum rule. The parsed checkpoint is
+// returned if it is valid.
+//
+// As https://c2sp.org/signed-note requires, every signature from a key the
+// policy knows, whether a log's or a witness', is verified. The checkpoint
+// is rejected if any of them is invalid, even one which the validity rule
+// could do without. Signatures from keys the policy does not know are
+// ignored.
+//
+// A policy with an empty set of logs cannot validate any checkpoint; if
+// the applicable log is known from other context, verify its signature
+// separately and use Satisfied for the quorum rule.
+func (p TLogPolicy) Verify(checkpoint []byte) (*f_log.Checkpoint, error) {
+	if len(p.Logs) == 0 {
+		return nil, fmt.Errorf("policy defines no logs")
+	}
+	vs := make([]note.Verifier, 0, len(p.Logs)+len(p.Witnesses))
+	for _, l := range p.Logs {
+		vs = append(vs, l.Verifier)
+	}
+	for _, w := range p.Witnesses {
+		vs = append(vs, w.Verifier)
+	}
+	n, err := note.Open(checkpoint, note.VerifierList(vs...))
+	var unverified *note.UnverifiedNoteError
+	switch {
+	case errors.As(err, &unverified):
+		// No signature from any key in the policy. That is not an error in
+		// itself: carry on with no verified signatures, and let the rules
+		// below report which requirement is unmet.
+		n = unverified.Note
+	case err != nil:
+		return nil, fmt.Errorf("verifying checkpoint signatures: %w", err)
+	}
+	logSigners := p.logSigners(n.Sigs)
+	if len(logSigners) == 0 {
+		return nil, fmt.Errorf("checkpoint is not signed by any log in the policy")
+	}
+	cp := &f_log.Checkpoint{}
+	if _, err := cp.Unmarshal([]byte(n.Text)); err != nil {
+		return nil, fmt.Errorf("parsing checkpoint: %w", err)
+	}
+	if !slices.Contains(logSigners, cp.Origin) {
+		return nil, fmt.Errorf("checkpoint origin %q does not match any log that signed it (%s)",
+			cp.Origin, strings.Join(logSigners, ", "))
+	}
+	if !p.quorumMet(n.Sigs) {
+		return nil, fmt.Errorf("checkpoint does not satisfy quorum %q", p.Quorum)
+	}
+	return cp, nil
+}
+
+// logSigners returns the key names of the policy logs that have a
+// signature in sigs, which must already be verified.
+func (p TLogPolicy) logSigners(sigs []note.Signature) []string {
+	var names []string
+	for _, l := range p.Logs {
+		if hasSig(sigs, l.Verifier) {
+			names = append(names, l.Verifier.Name())
+		}
+	}
+	return names
+}
+
+// quorumMet reports whether sigs, which must already be verified, satisfy
+// the policy's quorum rule.
+func (p TLogPolicy) quorumMet(sigs []note.Signature) bool {
 	if p.Quorum == quorumNone {
 		return true
 	}
@@ -330,8 +417,7 @@ func (p TLogPolicy) Satisfied(checkpoint []byte) bool {
 	var satisfied func(string) bool
 	satisfied = func(name string) bool {
 		if w, ok := witnesses[name]; ok {
-			n, err := note.Open(checkpoint, note.VerifierList(w.Verifier))
-			return err == nil && len(n.Sigs) == 1
+			return hasSig(sigs, w.Verifier)
 		}
 		g, ok := groups[name]
 		// Unknown names and cyclic references (neither of which can occur
@@ -355,30 +441,14 @@ func (p TLogPolicy) Satisfied(checkpoint []byte) bool {
 	return satisfied(p.Quorum)
 }
 
-// Verify applies the policy's checkpoint validity rule: the provided
-// checkpoint must be a note signed by any one of the policy's logs, with
-// an origin line matching that log's key name, and it must be cosigned by
-// witnesses according to the quorum rule. The parsed checkpoint is
-// returned if it is valid.
-//
-// A policy with an empty set of logs cannot validate any checkpoint; if
-// the applicable log is known from other context, verify its signature
-// separately and use Satisfied for the quorum rule.
-func (p TLogPolicy) Verify(checkpoint []byte) (*f_log.Checkpoint, error) {
-	if len(p.Logs) == 0 {
-		return nil, fmt.Errorf("policy defines no logs")
-	}
-	for _, l := range p.Logs {
-		cp, _, _, err := f_log.ParseCheckpoint(checkpoint, l.Verifier.Name(), l.Verifier)
-		if err != nil {
-			continue
+// hasSig reports whether sigs includes a signature by v's key.
+func hasSig(sigs []note.Signature, v note.Verifier) bool {
+	for _, s := range sigs {
+		if s.Name == v.Name() && s.Hash == v.KeyHash() {
+			return true
 		}
-		if !p.Satisfied(checkpoint) {
-			return nil, fmt.Errorf("checkpoint does not satisfy quorum %q", p.Quorum)
-		}
-		return cp, nil
 	}
-	return nil, fmt.Errorf("checkpoint is not signed by any log in the policy")
+	return false
 }
 
 // checkCharset returns an error if data contains an octet not permitted by

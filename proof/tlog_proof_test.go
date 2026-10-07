@@ -118,6 +118,18 @@ func TestUnmarshalErrors(t *testing.T) {
 			wantErrSubstr: "hash length",
 		},
 		{
+			// "aGVsbG8=" ("hello") with non-zero padding bits.
+			name:          "non-canonical extra data encoding",
+			proof:         []byte("c2sp.org/tlog-proof@v1\nextra aGVsbG9=\nindex 0\n\ncheckpoint\n"),
+			wantErrSubstr: "extra data not base64 encoded",
+		},
+		{
+			// The encoding of 32 zero bytes, with non-zero padding bits.
+			name:          "non-canonical hash encoding",
+			proof:         []byte("c2sp.org/tlog-proof@v1\nindex 0\n" + strings.Repeat("A", 42) + "B=\n\ncheckpoint\n"),
+			wantErrSubstr: "hash not base64 encoded",
+		},
+		{
 			name:          "scanner error - buffer too large",
 			proof:         []byte("c2sp.org/tlog-proof@v1\nindex 0\n" + strings.Repeat("a", 65*1024) + "\n"),
 			wantErrSubstr: "scanning tlog proof",

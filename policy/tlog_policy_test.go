@@ -459,6 +459,32 @@ func signedCheckpoint(t *testing.T, signers ...note.Signer) []byte {
 	return cp
 }
 
+// forger signs as the key behind a verifier, but its signatures are all
+// zeroes, so they never verify.
+type forger struct {
+	note.Verifier
+	sigSize int
+}
+
+func (f forger) Sign([]byte) ([]byte, error) { return make([]byte, f.sigSize), nil }
+
+// forge returns a forger for vkey, whose signatures are sigSize bytes.
+func forge(t *testing.T, vkey string, sigSize int) note.Signer {
+	t.Helper()
+	v, err := f_note.NewVerifier(vkey)
+	if err != nil {
+		t.Fatalf("NewVerifier(%q) failed: %v", vkey, err)
+	}
+	return forger{Verifier: v, sigSize: sigSize}
+}
+
+// Signature sizes for forgers: an Ed25519 signature, and a
+// cosignature/v1 timestamp plus Ed25519 signature.
+const (
+	ed25519SigSize = 64
+	cosigV1SigSize = 72
+)
+
 func TestSatisfied(t *testing.T) {
 	policy := fmt.Sprintf(`witness w1 %s
 witness w2 %s
@@ -500,6 +526,16 @@ quorum outer
 		{
 			desc:            "no cosignatures",
 			signers:         []note.Signer{},
+			expectSatisfied: false,
+		},
+		{
+			desc:            "quorum met, with an unknown witness' cosignature too",
+			signers:         []note.Signer{wit1Sign, wit3Sign, forge(t, wit4_vkey, cosigV1SigSize)},
+			expectSatisfied: true,
+		},
+		{
+			desc:            "quorum met, but a known witness' cosignature is invalid",
+			signers:         []note.Signer{wit1Sign, wit3Sign, forge(t, wit2_vkey, cosigV1SigSize)},
 			expectSatisfied: false,
 		},
 	} {
@@ -601,13 +637,58 @@ func TestVerify(t *testing.T) {
 			desc:    "log key name must match checkpoint origin",
 			policy:  fmt.Sprintf("log %s\nwitness w1 %s\nquorum w1\n", otherVkey, wit1_vkey),
 			signers: []note.Signer{otherSign, wit1Sign},
-			errStr:  "not signed by any log",
+			errStr:  `origin "` + testOrigin + `" does not match any log that signed it (other.example.com/log)`,
 		},
 		{
 			desc:    "policy without logs",
 			policy:  fmt.Sprintf("witness w1 %s\nquorum w1\n", wit1_vkey),
 			signers: []note.Signer{logSign, wit1Sign},
 			errStr:  "no logs",
+		},
+		{
+			desc:    "no signature from any known key",
+			policy:  fmt.Sprintf("log %s\nwitness w1 %s\nquorum w1\n", logVkey, wit1_vkey),
+			signers: []note.Signer{wit2Sign},
+			errStr:  "not signed by any log",
+		},
+		{
+			desc:    "signatures from unknown keys are ignored, even if invalid",
+			policy:  fmt.Sprintf("log %s\nwitness w1 %s\nquorum w1\n", logVkey, wit1_vkey),
+			signers: []note.Signer{logSign, wit1Sign, wit2Sign, forge(t, wit4_vkey, cosigV1SigSize)},
+		},
+		{
+			desc:    "invalid log signature",
+			policy:  fmt.Sprintf("log %s\nwitness w1 %s\nquorum w1\n", logVkey, wit1_vkey),
+			signers: []note.Signer{forge(t, logVkey, ed25519SigSize), wit1Sign},
+			errStr:  "invalid signature",
+		},
+		{
+			desc: "invalid signature from a second known log",
+			policy: fmt.Sprintf("log %s\nlog %s\nwitness w1 %s\nquorum w1\n",
+				logVkey, otherVkey, wit1_vkey),
+			signers: []note.Signer{logSign, forge(t, otherVkey, ed25519SigSize), wit1Sign},
+			errStr:  "invalid signature",
+		},
+		{
+			desc: "invalid cosignature from a known witness outside the quorum",
+			policy: fmt.Sprintf("log %s\nwitness w1 %s\nwitness w2 %s\nquorum w1\n",
+				logVkey, wit1_vkey, wit2_vkey),
+			signers: []note.Signer{logSign, wit1Sign, forge(t, wit2_vkey, cosigV1SigSize)},
+			errStr:  "invalid signature",
+		},
+		{
+			desc: "invalid cosignature from a known witness the quorum can do without",
+			policy: fmt.Sprintf("log %s\nwitness w1 %s\nwitness w2 %s\ngroup g any w1 w2\nquorum g\n",
+				logVkey, wit1_vkey, wit2_vkey),
+			signers: []note.Signer{logSign, wit1Sign, forge(t, wit2_vkey, cosigV1SigSize)},
+			errStr:  "invalid signature",
+		},
+		{
+			desc: "invalid cosignature from a known witness under quorum none",
+			policy: fmt.Sprintf("log %s\nwitness w1 %s\nquorum none\n",
+				logVkey, wit1_vkey),
+			signers: []note.Signer{logSign, forge(t, wit1_vkey, cosigV1SigSize)},
+			errStr:  "invalid signature",
 		},
 	} {
 		t.Run(tc.desc, func(t *testing.T) {
