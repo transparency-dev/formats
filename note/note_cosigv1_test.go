@@ -357,31 +357,229 @@ func TestSubtreeRoundtrip(t *testing.T) {
 	}
 
 	origin := "test-log"
-	var start uint64 = 0
-	var end uint64 = 10
 	root := make([]byte, 32)
 	if _, err := rand.Read(root); err != nil {
 		t.Fatal(err)
 	}
 
-	sig, err := signer.SignSubtree(origin, start, end, root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	for _, test := range []struct {
+		desc       string
+		start, end uint64
+		wantErr    bool
+	}{
+		{
+			desc:  "from zero",
+			start: 0,
+			end:   10,
+		},
+		{
+			desc:  "non-zero power-of-two size",
+			start: 8,
+			end:   16,
+		},
+		{
+			desc:  "non-zero partial subtree",
+			start: 8,
+			end:   13,
+		},
+		{
+			desc:  "empty subtree",
+			start: 10,
+			end:   10,
+		},
+		{
+			desc:    "invalid: start > end",
+			start:   10,
+			end:     8,
+			wantErr: true,
+		},
+		{
+			desc:    "invalid: misaligned subtree",
+			start:   2,
+			end:     6,
+			wantErr: true,
+		},
+	} {
+		t.Run(test.desc, func(t *testing.T) {
+			sig, err := signer.SignSubtree(origin, test.start, test.end, root)
+			if gotErr := err != nil; gotErr != test.wantErr {
+				t.Fatalf("SignSubtree(%d, %d): got err %v, wantErr %v", test.start, test.end, err, test.wantErr)
+			}
+			if test.wantErr {
+				return
+			}
 
-	if !verifier.VerifySubtree(origin, start, end, root, sig) {
-		t.Fatalf("Failed to verify valid subtree signature %q", sig)
-	}
+			if !verifier.VerifySubtree(origin, test.start, test.end, root, sig) {
+				t.Errorf("Failed to verify valid subtree signature %x", sig)
+			}
 
-	// Test failure cases
-	wrongRoot := make([]byte, 32)
-	wrongRoot[0] = 1
-	if verifier.VerifySubtree(origin, start, end, wrongRoot, sig) {
-		t.Error("VerifySubtree succeeded with wrong root")
-	}
+			// Test failure cases
+			wrongRoot := make([]byte, 32)
+			wrongRoot[0] = root[0] ^ 1
+			if verifier.VerifySubtree(origin, test.start, test.end, wrongRoot, sig) {
+				t.Error("VerifySubtree succeeded with wrong root")
+			}
 
-	if verifier.VerifySubtree("wrong origin", start, end, root, sig) {
-		t.Error("VerifySubtree succeeded with wrong origin")
+			if verifier.VerifySubtree("wrong origin", test.start, test.end, root, sig) {
+				t.Error("VerifySubtree succeeded with wrong origin")
+			}
+
+			if verifier.VerifySubtree(origin, test.start+1, test.end, root, sig) {
+				t.Error("VerifySubtree succeeded with wrong start")
+			}
+
+			if verifier.VerifySubtree(origin, test.start, test.end+1, root, sig) {
+				t.Error("VerifySubtree succeeded with wrong end")
+			}
+
+			corruptedSig := append([]byte(nil), sig...)
+			corruptedSig[0] ^= 1
+			if verifier.VerifySubtree(origin, test.start, test.end, root, corruptedSig) {
+				t.Error("VerifySubtree succeeded with corrupted signature")
+			}
+		})
+	}
+}
+
+func TestIsSubtreeValid(t *testing.T) {
+	// Includes test vectors from draft-ietf-plants-merkle-tree-certs-07 Appendix C.2.1.
+	for _, test := range []struct {
+		desc       string
+		start, end uint64
+		want       bool
+	}{
+		{
+			desc:  "empty at 0",
+			start: 0,
+			end:   0,
+			want:  true,
+		},
+		{
+			desc:  "empty at non-zero",
+			start: 42,
+			end:   42,
+			want:  true,
+		},
+		{
+			desc:  "valid [4, 8)",
+			start: 4,
+			end:   8,
+			want:  true,
+		},
+		{
+			desc:  "valid [8, 13)",
+			start: 8,
+			end:   13,
+			want:  true,
+		},
+		{
+			desc:  "valid [0, 2^47 + 1)",
+			start: 0,
+			end:   (1 << 47) + 1,
+			want:  true,
+		},
+		{
+			desc:  "valid [0, 2^48 - 1)",
+			start: 0,
+			end:   (1 << 48) - 1,
+			want:  true,
+		},
+		{
+			desc:  "valid [0, 2^62 + 1)",
+			start: 0,
+			end:   (1 << 62) + 1,
+			want:  true,
+		},
+		{
+			desc:  "valid [0, 2^63 - 1)",
+			start: 0,
+			end:   (1 << 63) - 1,
+			want:  true,
+		},
+		{
+			desc:  "valid [0, 2^63 + 1)",
+			start: 0,
+			end:   (1 << 63) + 1,
+			want:  true,
+		},
+		{
+			desc:  "valid [0, 2^64 - 1)",
+			start: 0,
+			end:   ^uint64(0),
+			want:  true,
+		},
+		{
+			desc:  "valid [2^63, 2^64 - 1)",
+			start: 1 << 63,
+			end:   ^uint64(0),
+			want:  true,
+		},
+		{
+			desc:  "invalid: start > end",
+			start: 10,
+			end:   8,
+			want:  false,
+		},
+		{
+			desc:  "invalid: misaligned [2, 6)",
+			start: 2,
+			end:   6,
+			want:  false,
+		},
+		{
+			desc:  "invalid: misaligned [4, 9)",
+			start: 4,
+			end:   9,
+			want:  false,
+		},
+		{
+			desc:  "invalid: [2^46, 2^47 + 1)",
+			start: 1 << 46,
+			end:   (1 << 47) + 1,
+			want:  false,
+		},
+		{
+			desc:  "invalid: [2^46, 2^48 - 1)",
+			start: 1 << 46,
+			end:   (1 << 48) - 1,
+			want:  false,
+		},
+		{
+			desc:  "invalid: [2^61, 2^62 + 1)",
+			start: 1 << 61,
+			end:   (1 << 62) + 1,
+			want:  false,
+		},
+		{
+			desc:  "invalid: [2^61, 2^63 - 1)",
+			start: 1 << 61,
+			end:   (1 << 63) - 1,
+			want:  false,
+		},
+		{
+			desc:  "invalid: [2^62, 2^63 + 1)",
+			start: 1 << 62,
+			end:   (1 << 63) + 1,
+			want:  false,
+		},
+		{
+			desc:  "invalid: [2^62, 2^64 - 1)",
+			start: 1 << 62,
+			end:   ^uint64(0),
+			want:  false,
+		},
+		{
+			desc:  "invalid: size == 2^63 with non-zero start",
+			start: 1,
+			end:   (1 << 63) + 1,
+			want:  false,
+		},
+	} {
+		t.Run(test.desc, func(t *testing.T) {
+			if got := isSubtreeValid(test.start, test.end); got != test.want {
+				t.Errorf("isSubtreeValid(%d, %d) = %v, want %v", test.start, test.end, got, test.want)
+			}
+		})
 	}
 }
 
