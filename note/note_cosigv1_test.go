@@ -533,7 +533,7 @@ func TestMLDSAVerifySubtreeTorchwood(t *testing.T) {
 	// TODO(al): At time of writing, torchwood produces note-style subtree signatures,
 	// so we'll parse out the raw signature ourselves for now.
 	_, sig, _ = strings.Cut(sig, " ") // Chomp the dash
-	_, sig, _ = strings.Cut(sig, " ") // Chome the name
+	_, sig, _ = strings.Cut(sig, " ") // Chomp the name
 
 	// Everything else should be base64 encoded.
 	sigBytes, err := base64.StdEncoding.DecodeString(sig)

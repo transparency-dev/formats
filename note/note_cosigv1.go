@@ -109,32 +109,32 @@ func NewMLDSASignerFromCrypto(name string, signer crypto.Signer) (SubtreeSigner,
 		if _, err := c.Unmarshal(msg); err != nil {
 			return nil, err
 		}
-		return s.signSubtree(t, c.Origin, 0, c.Size, c.Hash)
+		sigRaw, err := s.signSubtree(t, c.Origin, 0, c.Size, c.Hash)
+		if err != nil {
+			return nil, err
+		}
+		// Note cosignatures must include the timestamp as prefix.
+		r := make([]byte, 0, timestampSize+len(sigRaw))
+		r = binary.BigEndian.AppendUint64(r, t)
+		r = append(r, sigRaw...)
+		return r, nil
 	}
 	s.signSubtree = func(timestamp uint64, logOrigin string, start, end uint64, root []byte) ([]byte, error) {
 		m, err := formatMLDSACosignatureV1(name, timestamp, logOrigin, start, end, root)
 		if err != nil {
 			return nil, err
 		}
-		sB, err := signer.Sign(nil, m, nil)
+		sigRaw, err := signer.Sign(nil, m, nil)
 		if err != nil {
 			return nil, err
 		}
-		// The signature itself is encoded as timestamp || signature.
-		sig := make([]byte, 0, timestampSize+mldsa.MLDSA44SignatureSize)
-		sig = binary.BigEndian.AppendUint64(sig, timestamp)
-		sig = append(sig, sB...)
-		return sig, nil
+		return sigRaw, nil
 	}
 	s.verifier = &subtreeVerifier{
-		name:    name,
-		keyHash: s.hash,
-		verifyNote: func(msg, sig []byte) bool {
-			return verifyMLDSACosigV1(pubKey, name)(msg, sig)
-		},
-		verifySubtree: func(logOrigin string, start, end uint64, hash []byte, sig []byte) bool {
-			return verifyMLDSACosigV1Subtree(pubKey, name)(logOrigin, start, end, hash, sig)
-		},
+		name:          name,
+		keyHash:       s.hash,
+		verifyNote:    verifyMLDSACosigV1(pubKey, name),
+		verifySubtree: verifyMLDSACosigV1Subtree(pubKey, name),
 	}
 
 	return s, nil
@@ -162,12 +162,8 @@ func NewMLDSAVerifier(vkey string) (SubtreeVerifier, error) {
 	if err != nil {
 		return nil, err
 	}
-	v.verifyNote = func(msg, sig []byte) bool {
-		return verifyMLDSACosigV1(pubKey, name)(msg, sig)
-	}
-	v.verifySubtree = func(logOrigin string, start, end uint64, hash []byte, sig []byte) bool {
-		return verifyMLDSACosigV1Subtree(pubKey, name)(logOrigin, start, end, hash, sig)
-	}
+	v.verifyNote = verifyMLDSACosigV1(pubKey, name)
+	v.verifySubtree = verifyMLDSACosigV1Subtree(pubKey, name)
 	return v, nil
 }
 
@@ -369,9 +365,7 @@ func verifyEd25519CosigV1(key []byte) func(msg, sig []byte) bool {
 // verifyMLDSACosigV1 returns a checkpoint-cosignature verifying function
 // based on the provided key and cosigner name.
 //
-// Checkpoint signatures are simply subtree signatures over the range [0, size),
-// so we parse the checkpoint and then use the subtree verifier to verify
-// the signature as a subtree signature.
+// Checkpoint signatures are simply subtree signatures over the range [0, size).
 func verifyMLDSACosigV1(pubKey *mldsa.PublicKey, name string) func(msg, sig []byte) bool {
 	return func(msg, sig []byte) bool {
 		c := &log.Checkpoint{}
@@ -466,7 +460,7 @@ func formatMLDSACosignatureV1(cosignerName string, timestamp uint64, logOrigin s
 	//        uint64 start;
 	//        uint64 end;
 	//        uint8 hash[32];
-	//    } cosigned_message;
+	//    } CosignedSubtree;
 	//
 	// See https://c2sp.org/tlog-cosignature for more details.
 
@@ -526,7 +520,8 @@ type SubtreeSigner interface {
 	note.Signer
 	// SignSubtree returns a signature over the subtree described by the provided arguments.
 	// The returned signature is a []byte containing the signature value as outputted by the cosignature algorithm.
-	// Unlike a checkpoint cosignature, there is no timestamp, and the signature not formatted as a note signature line.
+	// Unlike a checkpoint cosignature, there is no timestamp, and the signature is not formatted
+	// as a note signature line.
 	SignSubtree(logOrigin string, start, end uint64, root []byte) ([]byte, error)
 	// Verifier returns a SubtreeVerifier instance which is able to verify signatures created by this signer instance.
 	Verifier() SubtreeVerifier
@@ -545,20 +540,22 @@ func (s *subtreeSigner) Name() string                    { return s.name }
 func (s *subtreeSigner) KeyHash() uint32                 { return s.hash }
 func (s *subtreeSigner) Sign(msg []byte) ([]byte, error) { return s.signNote(msg) }
 func (s *subtreeSigner) SignSubtree(logOrigin string, start, end uint64, root []byte) ([]byte, error) {
-	stSig, err := s.signSubtree(0, logOrigin, start, end, root)
+	sig, err := s.signSubtree(0, logOrigin, start, end, root)
 	if err != nil {
 		return nil, err
 	}
-	// stSig contains timestamp || signature; strip off the timestamp to match the spec.
-	return stSig[timestampSize:], nil
+	return sig, nil
 }
+
 func (s *subtreeSigner) Verifier() SubtreeVerifier { return s.verifier }
 
 // SubtreeVerifier is a verifier that supports the verification of subtree signatures.
 type SubtreeVerifier interface {
 	note.Verifier
 	// VerifySubtree verifies signatures over the provided subtree arguments.
-	VerifySubtree(logOrigin string, start, end uint64, hash []byte, sig []byte) bool
+	// Expects that sig is a raw signature, as produced by SignSubtree, with no leading
+	// timestamp.
+	VerifySubtree(logOrigin string, start, end uint64, root []byte, sig []byte) bool
 }
 
 // subtreeVerifier implements the note.Verifier interface to facilitate cosigning operations
