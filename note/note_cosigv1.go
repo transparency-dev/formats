@@ -431,7 +431,7 @@ var (
 	errInvalidPayload = errors.New("invalid message payload")
 )
 
-func formatMLDSACosignatureV1(cosignerName string, timestamp uint64, logOrigin string, start, end uint64, hash []byte) ([]byte, error) {
+func formatMLDSACosignatureV1(cosignerName string, timestamp uint64, logOrigin string, start, end uint64, root []byte) ([]byte, error) {
 	// SPEC: If start is not zero, timestamp MUST be zero.
 	if start > 0 && timestamp > 0 {
 		return nil, errInvalidTimestamp
@@ -446,7 +446,7 @@ func formatMLDSACosignatureV1(cosignerName string, timestamp uint64, logOrigin s
 	if lo, lc := len(logOrigin), len(cosignerName); lo == 0 || lo > 255 || lc == 0 || lc > 255 {
 		return nil, errSignerID
 	}
-	if len(hash) != sha256.Size {
+	if len(root) != sha256.Size {
 		return nil, errInvalidPayload
 	}
 
@@ -459,7 +459,7 @@ func formatMLDSACosignatureV1(cosignerName string, timestamp uint64, logOrigin s
 	//        opaque log_origin<1..2^8-1>;
 	//        uint64 start;
 	//        uint64 end;
-	//        uint8 hash[32];
+	//        uint8 root_hash[32];
 	//    } CosignedSubtree;
 	//
 	// See https://c2sp.org/tlog-cosignature for more details.
@@ -474,7 +474,7 @@ func formatMLDSACosignatureV1(cosignerName string, timestamp uint64, logOrigin s
 	r.AddBytes([]byte(logOrigin))
 	r.AddUint64(start)
 	r.AddUint64(end)
-	r.AddBytes(hash)
+	r.AddBytes(root)
 	return r.Bytes()
 }
 
@@ -565,14 +565,14 @@ type subtreeVerifier struct {
 	name          string
 	keyHash       uint32
 	verifyNote    func([]byte, []byte) bool
-	verifySubtree func(logOrigin string, start, end uint64, hash []byte, sig []byte) bool
+	verifySubtree func(logOrigin string, start, end uint64, root []byte, sig []byte) bool
 }
 
 func (v *subtreeVerifier) Name() string                { return v.name }
 func (v *subtreeVerifier) KeyHash() uint32             { return v.keyHash }
 func (v *subtreeVerifier) Verify(msg, sig []byte) bool { return v.verifyNote(msg, sig) }
-func (v *subtreeVerifier) VerifySubtree(logOrigin string, start, end uint64, hash []byte, sig []byte) bool {
-	return v.verifySubtree(logOrigin, start, end, hash, sig)
+func (v *subtreeVerifier) VerifySubtree(logOrigin string, start, end uint64, root []byte, sig []byte) bool {
+	return v.verifySubtree(logOrigin, start, end, root, sig)
 }
 
 // isValidName reports whether name is valid.
