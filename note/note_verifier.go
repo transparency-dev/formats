@@ -34,6 +34,9 @@ import (
 // Ed25519 private key in the standard note-formatted form, e.g.
 // `PRIVATE+KEY+logandmap+38581672+AXJ0FKWOcO2ch6WC8kP705Ed3Gxu7pVtZLhfHAQwp+FE`.
 func NewEd25519SignerVerifier(skey string) (note.Signer, note.Verifier, error) {
+	if strings.ContainsAny(skey, "\r\n") {
+		return nil, nil, errors.New("key contains newline or carriage return")
+	}
 	const algEd25519 = 1
 	s, err := note.NewSigner(skey)
 	if err != nil {
@@ -89,6 +92,9 @@ func NewEd25519SignerVerifier(skey string) (note.Signer, note.Verifier, error) {
 //
 //	"rekor.sigstore.dev+12345678+AjBZMBMGByqGSM49AgEGCCqGSM49AwEHA0IABNhtmPtrWm3U1eQXBogSMdGvXwBcK5AW5i0hrZLOC96l+smGNM7nwZ4QvFK/4sueRoVj//QP22Ni4Qt9DPfkWLc=
 func NewECDSAVerifier(key string) (note.Verifier, error) {
+	if strings.ContainsAny(key, "\r\n") {
+		return nil, fmt.Errorf("key contains newline or carriage return: %q", key)
+	}
 	parts := strings.SplitN(key, "+", 3)
 	if got, want := len(parts), 3; got != want {
 		return nil, fmt.Errorf("key has %d parts, expected %d: %q", got, want, key)

@@ -44,6 +44,9 @@ var (
 // - 0x04 ed25519 Cosignature/V1
 // - 0x06 ML-DSA-44 Cosignature/V1
 func NewSigner(skey string) (Signer, error) {
+	if strings.ContainsAny(skey, "\r\n") {
+		return nil, errSignerID
+	}
 	priv1, k, _ := strings.Cut(skey, "+")
 	priv2, k, _ := strings.Cut(k, "+")
 	name, k, _ := strings.Cut(k, "+")
@@ -127,6 +130,9 @@ func (s *signer) Verifier() note.Verifier {
 
 // NewVerifier returns a verifier for the given key, if the key's algo is known.
 func NewVerifier(key string) (note.Verifier, error) {
+	if strings.ContainsAny(key, "\r\n") {
+		return nil, fmt.Errorf("key contains newline or carriage return: %q", key)
+	}
 	parts := strings.SplitN(key, "+", 3)
 	if got, want := len(parts), 3; got != want {
 		return nil, fmt.Errorf("key has %d parts, expected %d: %q", got, want, key)

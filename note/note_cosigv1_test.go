@@ -770,3 +770,96 @@ func mustECDSASigner(t *testing.T) crypto.Signer {
 	}
 	return ecdsaK
 }
+
+func TestCosigV1_RejectCRLF(t *testing.T) {
+	edSk, edVk := mustGenerateEd25519Key(t, "ed25519")
+	mlSk, mlVk := mustGenerateMLDSAKey(t, "mldsa")
+
+	embedCRLF := func(s string) string {
+		return s[:len(s)-4] + "\r\n" + s[len(s)-4:]
+	}
+	for _, sk := range []string{edSk + "\r\n", edSk + "\r", edSk + "\n", embedCRLF(edSk), mlSk + "\r\n", mlSk + "\r", mlSk + "\n", embedCRLF(mlSk)} {
+		if _, err := NewSignerForCosignatureV1(sk); err == nil {
+			t.Errorf("NewSignerForCosignatureV1(%q) succeeded, want error", sk)
+		}
+	}
+	for _, sk := range []string{mlSk + "\r\n", mlSk + "\r", mlSk + "\n", embedCRLF(mlSk)} {
+		if _, err := NewMLDSASigner(sk); err == nil {
+			t.Errorf("NewMLDSASigner(%q) succeeded, want error", sk)
+		}
+	}
+	for _, vk := range []string{edVk + "\r\n", edVk + "\r", edVk + "\n", embedCRLF(edVk), mlVk + "\r\n", mlVk + "\r", mlVk + "\n", embedCRLF(mlVk)} {
+		if _, err := NewVerifierForCosignatureV1(vk); err == nil {
+			t.Errorf("NewVerifierForCosignatureV1(%q) succeeded, want error", vk)
+		}
+	}
+	for _, vk := range []string{mlVk + "\r\n", mlVk + "\r", mlVk + "\n", embedCRLF(mlVk)} {
+		if _, err := NewMLDSAVerifier(vk); err == nil {
+			t.Errorf("NewMLDSAVerifier(%q) succeeded, want error", vk)
+		}
+	}
+	for _, vk := range []string{edVk + "\r\n", edVk + "\r", edVk + "\n", embedCRLF(edVk)} {
+		if _, err := VKeyToCosignatureV1(vk); err == nil {
+			t.Errorf("VKeyToCosignatureV1(%q) succeeded, want error", vk)
+		}
+	}
+
+	validSig := "ZGhGuQAAAABm/qTPeyKXD+R2rzyQsxPiP8mXum7qq/iF0u4vanlqJyocWODBt97w9uL+8qT7S5gxEHWWOworDcFiEBYJXORmnFBOBA=="
+	for _, b64 := range []string{validSig + "\r\n", validSig + "\r", validSig + "\n", embedCRLF(validSig)} {
+		if _, err := CosignatureTimestamp(note.Signature{Base64: b64}); err == nil {
+			t.Errorf("CosignatureTimestamp(%q) succeeded, want error", b64)
+		}
+		if _, err := CoSigV1Timestamp(note.Signature{Base64: b64}); err == nil {
+			t.Errorf("CoSigV1Timestamp(%q) succeeded, want error", b64)
+		}
+	}
+
+	edSigner, err := NewSignerForCosignatureV1(edSk)
+	if err != nil {
+		t.Fatal(err)
+	}
+	mlSigner, err := NewMLDSASigner(mlSk)
+	if err != nil {
+		t.Fatal(err)
+	}
+	validMsg := []byte("test\n123\nf+7CoKgXKE/tNys9TTXcr/ad6U/K3xvznmzew9y6SP0=\n")
+	crlfMsg := []byte("test\n123\nf+7CoKgXKE/tNys9TTXcr/ad6U/K3xvznmzew9y6SP0=\r\n")
+	for _, tc := range []struct {
+		name string
+		sign func([]byte) ([]byte, error)
+		ver  note.Verifier
+	}{
+		{"ed25519", edSigner.Sign, edSigner.Verifier()},
+		{"mldsa44", mlSigner.Sign, mlSigner.Verifier()},
+	} {
+		if _, err := tc.sign(crlfMsg); err == nil {
+			t.Errorf("%s.Sign() succeeded on CRLF checkpoint body, want error", tc.name)
+		}
+		sig, err := tc.sign(validMsg)
+		if err != nil {
+			t.Fatalf("%s.Sign(validMsg): %v", tc.name, err)
+		}
+		if tc.ver.Verify(crlfMsg, sig) {
+			t.Errorf("%s.Verifier().Verify() = true on CRLF checkpoint body, want false", tc.name)
+		}
+	}
+
+	root := make([]byte, 32)
+	validSubtreeSig, err := mlSigner.SignSubtree("test", 0, 10, root)
+	if err != nil {
+		t.Fatalf("SignSubtree: %v", err)
+	}
+	for _, badOrigin := range []string{"test\r", "test\n", "test\r\n"} {
+		if _, err := mlSigner.SignSubtree(badOrigin, 0, 10, root); err == nil {
+			t.Errorf("SignSubtree(%q) succeeded, want error", badOrigin)
+		}
+		if mlSigner.Verifier().VerifySubtree(badOrigin, 0, 10, root, validSubtreeSig) {
+			t.Errorf("VerifySubtree(%q) = true, want false", badOrigin)
+		}
+	}
+	for _, badName := range []string{"wit\r", "wit\n", "wit\r\n"} {
+		if _, err := formatMLDSACosignatureV1(badName, 123, "test", 0, 10, root); err == nil {
+			t.Errorf("formatMLDSACosignatureV1(cosignerName=%q) succeeded, want error", badName)
+		}
+	}
+}

@@ -53,6 +53,9 @@ func (c Checkpoint) Marshal() []byte {
 //
 // Any trailing data after this will be returned.
 func (c *Checkpoint) Unmarshal(data []byte) ([]byte, error) {
+	if bytes.IndexByte(data, '\r') >= 0 {
+		return nil, errors.New("invalid checkpoint - contains carriage return")
+	}
 	l := bytes.SplitN(data, []byte("\n"), 4)
 	if len(l) < 4 {
 		return nil, errors.New("invalid checkpoint - too few newlines")

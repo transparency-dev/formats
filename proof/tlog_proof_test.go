@@ -134,6 +134,37 @@ func TestUnmarshalErrors(t *testing.T) {
 			proof:         []byte("c2sp.org/tlog-proof@v1\nindex 0\n" + strings.Repeat("a", 65*1024) + "\n"),
 			wantErrSubstr: "scanning tlog proof",
 		},
+		{
+			name:          "CRLF on header line",
+			proof:         []byte("c2sp.org/tlog-proof@v1\r\nindex 0\n\ncheckpoint\n"),
+			wantErrSubstr: "carriage return",
+		},
+		{
+			name:          "CRLF on extra line",
+			proof:         []byte("c2sp.org/tlog-proof@v1\nextra aGVsbG8=\r\nindex 0\n\ncheckpoint\n"),
+			wantErrSubstr: "carriage return",
+		},
+		{
+			name:          "CRLF on index line",
+			proof:         []byte("c2sp.org/tlog-proof@v1\nindex 0\r\n\ncheckpoint\n"),
+			wantErrSubstr: "carriage return",
+		},
+		{
+			name: "CRLF on hash line",
+			proof: []byte("c2sp.org/tlog-proof@v1\nindex 0\n" +
+				base64.StdEncoding.EncodeToString(make([]byte, 32)) + "\r\n\ncheckpoint\n"),
+			wantErrSubstr: "carriage return",
+		},
+		{
+			name:          "CRLF on separator line",
+			proof:         []byte("c2sp.org/tlog-proof@v1\nindex 0\n\r\ncheckpoint\n"),
+			wantErrSubstr: "carriage return",
+		},
+		{
+			name:          "CRLF in checkpoint",
+			proof:         []byte("c2sp.org/tlog-proof@v1\nindex 0\n\ncheckpoint\r\n"),
+			wantErrSubstr: "carriage return",
+		},
 	}
 
 	for _, tt := range tests {

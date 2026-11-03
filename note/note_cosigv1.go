@@ -53,6 +53,9 @@ func GenerateMLDSAKey(name string) (skey string, vkey string, err error) {
 
 // NewMLDSASigner returns a signer for MLDSA cosignature v1.
 func NewMLDSASigner(skey string) (SubtreeSigner, error) {
+	if strings.ContainsAny(skey, "\r\n") {
+		return nil, errSignerID
+	}
 	priv1, skey, _ := strings.Cut(skey, "+")
 	priv2, skey, _ := strings.Cut(skey, "+")
 	name, skey, _ := strings.Cut(skey, "+")
@@ -142,6 +145,9 @@ func NewMLDSASignerFromCrypto(name string, signer crypto.Signer) (SubtreeSigner,
 
 // NewMLDSAVerifier constructs a verifier for MLDSA cosignature v1.
 func NewMLDSAVerifier(vkey string) (SubtreeVerifier, error) {
+	if strings.ContainsAny(vkey, "\r\n") {
+		return nil, errVerifierID
+	}
 	name, vkey, _ := strings.Cut(vkey, "+")
 	hash16, key64, _ := strings.Cut(vkey, "+")
 	keyBytes, err := base64.StdEncoding.DecodeString(key64)
@@ -177,6 +183,9 @@ func NewMLDSAVerifier(vkey string) (SubtreeVerifier, error) {
 //
 // See https://c2sp.org/tlog-cosignature for more details.
 func NewSignerForCosignatureV1(skey string) (Signer, error) {
+	if strings.ContainsAny(skey, "\r\n") {
+		return nil, errSignerID
+	}
 	priv1, skey, _ := strings.Cut(skey, "+")
 	priv2, skey, _ := strings.Cut(skey, "+")
 	name, skey, _ := strings.Cut(skey, "+")
@@ -248,6 +257,9 @@ func NewSignerForCosignatureV1(skey string) (Signer, error) {
 // the returned Verifier has a different key hash from a non-timestamped Ed25519
 // verifier key.
 func NewVerifierForCosignatureV1(vkey string) (note.Verifier, error) {
+	if strings.ContainsAny(vkey, "\r\n") {
+		return nil, errVerifierID
+	}
 	name, vkey, _ := strings.Cut(vkey, "+")
 	hash16, key64, _ := strings.Cut(vkey, "+")
 	key, err := base64.StdEncoding.DecodeString(key64)
@@ -288,6 +300,9 @@ func NewVerifierForCosignatureV1(vkey string) (note.Verifier, error) {
 
 // VKeyToCosignatureV1 converts a standard Ed25519 vkey to an Ed25519CosignatureV1 vkey.
 func VKeyToCosignatureV1(vkey string) (string, error) {
+	if strings.ContainsAny(vkey, "\r\n") {
+		return "", errVerifierID
+	}
 	name, vkey, _ := strings.Cut(vkey, "+")
 	hash16, key64, _ := strings.Cut(vkey, "+")
 	algKey, err := base64.StdEncoding.DecodeString(key64)
@@ -326,6 +341,9 @@ func CoSigV1Timestamp(s note.Signature) (time.Time, error) {
 
 // CosignatureTimestamp returns the timestamp embedded in a signature from a CosignatureV1 signer.
 func CosignatureTimestamp(s note.Signature) (uint64, error) {
+	if strings.ContainsAny(s.Base64, "\r\n") {
+		return 0, errMalformedSig
+	}
 	r, err := base64.StdEncoding.DecodeString(s.Base64)
 	if err != nil {
 		return 0, errMalformedSig
@@ -421,6 +439,9 @@ func formatEd25519CosignatureV1(t uint64, msg []byte) ([]byte, error) {
 	//
 	// See https://c2sp.org/tlog-cosignature for more details.
 
+	if bytes.IndexByte(msg, '\r') >= 0 {
+		return nil, errors.New("cosigned note contains carriage return")
+	}
 	if lines := bytes.Split(msg, []byte("\n")); len(lines) < 3 {
 		return nil, errors.New("cosigned note format invalid")
 	}
@@ -443,7 +464,8 @@ func formatMLDSACosignatureV1(cosignerName string, timestamp uint64, logOrigin s
 	if !isSubtreeValid(start, end) {
 		return nil, errInvalidPayload
 	}
-	if lo, lc := len(logOrigin), len(cosignerName); lo == 0 || lo > 255 || lc == 0 || lc > 255 {
+	if lo, lc := len(logOrigin), len(cosignerName); lo == 0 || lo > 255 || lc == 0 || lc > 255 ||
+		strings.ContainsAny(logOrigin, "\r\n") || strings.ContainsAny(cosignerName, "\r\n") {
 		return nil, errSignerID
 	}
 	if len(root) != sha256.Size {

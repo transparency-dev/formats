@@ -92,3 +92,28 @@ func TestNoteInterop(t *testing.T) {
 		}
 	}
 }
+
+func TestNewSignerVerifier_RejectCRLF(t *testing.T) {
+	ns, nv, err := note.GenerateKey(nil, "note")
+	if err != nil {
+		t.Fatalf("note.GenerateKey: %v", err)
+	}
+	ms, mv, err := GenerateMLDSAKey("mldsa")
+	if err != nil {
+		t.Fatalf("GenerateMLDSAKey: %v", err)
+	}
+
+	embedCRLF := func(s string) string {
+		return s[:len(s)-4] + "\r\n" + s[len(s)-4:]
+	}
+	for _, s := range []string{ns + "\r\n", ns + "\r", ns + "\n", embedCRLF(ns), ms + "\r\n", ms + "\r", ms + "\n", embedCRLF(ms)} {
+		if _, err := NewSigner(s); err == nil {
+			t.Errorf("NewSigner(%q) succeeded, want error", s)
+		}
+	}
+	for _, v := range []string{nv + "\r\n", nv + "\r", nv + "\n", embedCRLF(nv), mv + "\r\n", mv + "\r", mv + "\n", embedCRLF(mv)} {
+		if _, err := NewVerifier(v); err == nil {
+			t.Errorf("NewVerifier(%q) succeeded, want error", v)
+		}
+	}
+}
