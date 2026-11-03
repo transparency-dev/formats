@@ -224,3 +224,11 @@ func BenchmarkGroupSatisfaction(b *testing.B) {
 		}
 	}
 }
+
+func TestNew_RejectsCRLF(t *testing.T) {
+	for _, vk := range []string{wit1_vkey + "\r\n", wit1_vkey + "\r", wit1_vkey + "\n"} {
+		if _, err := New(vk, directURL); err == nil {
+			t.Errorf("New(%q) succeeded, want error", vk)
+		}
+	}
+}

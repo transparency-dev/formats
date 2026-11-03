@@ -15,6 +15,7 @@
 package note
 
 import (
+	"bytes"
 	"crypto"
 	"crypto/ecdsa"
 	"crypto/sha256"
@@ -50,6 +51,9 @@ func RFC6962VerifierString(logURL string, pubK crypto.PublicKey) (string, error)
 
 // NewRFC6962Verifier creates a note verifier for Static CT/RFC6962 checkpoint signatures.
 func NewRFC6962Verifier(vkey string) (note.Verifier, error) {
+	if strings.ContainsAny(vkey, "\r\n") {
+		return nil, errVerifierID
+	}
 	name, vkey, _ := strings.Cut(vkey, "+")
 	hash16, key64, _ := strings.Cut(vkey, "+")
 	key, err := base64.StdEncoding.DecodeString(key64)
@@ -113,6 +117,9 @@ func RFC6962STHToCheckpoint(j []byte, v note.Verifier) ([]byte, error) {
 
 // RFC6962STHTimestamp extracts the embedded timestamp from a translated RFC6962 STH signature.
 func RFC6962STHTimestamp(s note.Signature) (time.Time, error) {
+	if strings.ContainsAny(s.Base64, "\r\n") {
+		return time.UnixMilli(0), errMalformedSig
+	}
 	r, err := base64.StdEncoding.DecodeString(s.Base64)
 	if err != nil {
 		return time.UnixMilli(0), errMalformedSig
@@ -224,6 +231,9 @@ func formatRFC6962STH(t uint64, msg []byte) (string, []byte, error) {
 	// origin (schema-less log root url) "\n"
 	// tree size (decimal) "\n"
 	// root hash (b64) "\n"
+	if bytes.IndexByte(msg, '\r') >= 0 {
+		return "", nil, errors.New("checkpoint contains carriage return")
+	}
 	lines := strings.Split(string(msg), "\n")
 	if len(lines) != 4 {
 		return "", nil, errors.New("wrong number of lines")

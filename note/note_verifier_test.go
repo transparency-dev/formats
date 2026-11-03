@@ -176,3 +176,20 @@ func TestECDSAVerifier(t *testing.T) {
 		})
 	}
 }
+
+func TestNoteVerifier_RejectCRLF(t *testing.T) {
+	edPriv := "PRIVATE+KEY+logandmap+38581672+AXJ0FKWOcO2ch6WC8kP705Ed3Gxu7pVtZLhfHAQwp+FE"
+	embedCRLF := func(s string) string {
+		return s[:len(s)-4] + "\r\n" + s[len(s)-4:]
+	}
+	for _, k := range []string{edPriv + "\r\n", edPriv + "\r", edPriv + "\n", embedCRLF(edPriv)} {
+		if _, _, err := NewEd25519SignerVerifier(k); err == nil {
+			t.Errorf("NewEd25519SignerVerifier(%q) succeeded, want error", k)
+		}
+	}
+	for _, k := range []string{sigStoreKey + "\r\n", sigStoreKey + "\r", sigStoreKey + "\n", embedCRLF(sigStoreKey)} {
+		if _, err := NewECDSAVerifier(k); err == nil {
+			t.Errorf("NewECDSAVerifier(%q) succeeded, want error", k)
+		}
+	}
+}

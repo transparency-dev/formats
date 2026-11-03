@@ -134,6 +134,22 @@ func TestUnmarshalLogState(t *testing.T) {
 			desc:    "invalid roothash - not base64",
 			m:       "Log\n123\nThisIsn'tBase64\n",
 			wantErr: true,
+		}, {
+			desc:    "invalid - CRLF on origin",
+			m:       "Log\r\n123\nYmFuYW5hcw==\n",
+			wantErr: true,
+		}, {
+			desc:    "invalid - CRLF on size",
+			m:       "Log\n123\r\nYmFuYW5hcw==\n",
+			wantErr: true,
+		}, {
+			desc:    "invalid - CRLF on roothash",
+			m:       "Log\n123\nYmFuYW5hcw==\r\n",
+			wantErr: true,
+		}, {
+			desc:    "invalid - CRLF in trailing data",
+			m:       "Log\n123\nYmFuYW5hcw==\next\r\n",
+			wantErr: true,
 		},
 	} {
 		t.Run(string(test.desc), func(t *testing.T) {

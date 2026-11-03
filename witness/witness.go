@@ -49,6 +49,9 @@ type policyComponent interface {
 // but with the difference that the configured witness keys MUST be signature type `0x04` `vkey`s as specified
 // by C2SP [signed-note](https://github.com/C2SP/C2SP/blob/main/signed-note.md#verifier-keys).
 func ParsePolicy(p []byte) (Group, error) {
+	if bytes.IndexByte(p, '\r') >= 0 {
+		return Group{}, fmt.Errorf("invalid policy: contains carriage return")
+	}
 	scanner := bufio.NewScanner(bytes.NewBuffer(p))
 	components := make(map[string]policyComponent)
 

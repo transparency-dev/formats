@@ -160,6 +160,11 @@ func TestParsePolicy_Errors(t *testing.T) {
 			policy: `group none 1 witness`,
 			errStr: "invalid group name",
 		},
+		{
+			desc:   "carriage return in policy",
+			policy: "witness w1 sigsum.org+e4ade967+AZuUY6B08pW3QVHu8uvsrxWPcAv9nykap2Nb4oxCee+r https://sigsum.org/witness/\r\nquorum w1\r\n",
+			errStr: "carriage return",
+		},
 	}
 
 	for _, tc := range testCases {

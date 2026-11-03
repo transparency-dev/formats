@@ -57,6 +57,9 @@ func (p TLogProof) Marshal() []byte {
 }
 
 func (p *TLogProof) Unmarshal(data []byte) error {
+	if bytes.IndexByte(data, '\r') >= 0 {
+		return fmt.Errorf("tlog proof contains carriage return")
+	}
 	var err error
 	b := bufio.NewScanner(bytes.NewReader(data))
 

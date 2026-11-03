@@ -193,3 +193,34 @@ func mustB64(t *testing.T, s string) []byte {
 	}
 	return b
 }
+
+func TestRFC6962_RejectCRLF(t *testing.T) {
+	vkey := "rome.ct.filippo.io/2024h1+78f4abae+BTBZMBMGByqGSM49AgEGCCqGSM49AwEHA0IABAFzPC3fap+uINc1RQ4eRbYMUt84+bKkA8GDLN8KwVdzAgYhYSv4kS8XSheGLAHCWhIJTJbuC3sL88bNMTtrsBM="
+	embedCRLF := func(s string) string {
+		return s[:len(s)-4] + "\r\n" + s[len(s)-4:]
+	}
+	for _, vk := range []string{vkey + "\r\n", vkey + "\r", vkey + "\n", embedCRLF(vkey)} {
+		if _, err := NewRFC6962Verifier(vk); err == nil {
+			t.Errorf("NewRFC6962Verifier(%q) succeeded, want error", vk)
+		}
+	}
+
+	v, err := NewRFC6962Verifier(vkey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	n, err := note.Open([]byte(romeCP), note.VerifierList(v))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, b64 := range []string{n.Sigs[0].Base64 + "\r\n", n.Sigs[0].Base64 + "\r", n.Sigs[0].Base64 + "\n", embedCRLF(n.Sigs[0].Base64)} {
+		if _, err := RFC6962STHTimestamp(note.Signature{Base64: b64}); err == nil {
+			t.Errorf("RFC6962STHTimestamp(%q) succeeded, want error", b64)
+		}
+	}
+	rawSig := mustB64(t, n.Sigs[0].Base64)[keyHashSize:]
+	crlfBody := []byte("rome.ct.filippo.io/2024h1\n115474666\n2q1K6aiIJR+F7TyhiWOghoWOjY0/3dVBLsBbAvB4xCw=\r\n")
+	if v.Verify(crlfBody, rawSig) {
+		t.Error("RFC6962 Verifier.Verify() = true with CRLF on root hash line, want false")
+	}
+}
