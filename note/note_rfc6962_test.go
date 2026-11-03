@@ -105,6 +105,11 @@ func TestVerify(t *testing.T) {
 			cp:       []byte("B0rked" + romeCP),
 			verifier: "rome.ct.filippo.io/2024h1+78f4abae+BTBZMBMGByqGSM49AgEGCCqGSM49AwEHA0IABAFzPC3fap+uINc1RQ4eRbYMUt84+bKkA8GDLN8KwVdzAgYhYSv4kS8XSheGLAHCWhIJTJbuC3sL88bNMTtrsBM=",
 			wantErr:  true,
+		}, {
+			name:     "leading zero in size",
+			cp:       []byte(strings.Replace(romeCP, "\n115474666\n", "\n0115474666\n", 1)),
+			verifier: "rome.ct.filippo.io/2024h1+78f4abae+BTBZMBMGByqGSM49AgEGCCqGSM49AwEHA0IABAFzPC3fap+uINc1RQ4eRbYMUt84+bKkA8GDLN8KwVdzAgYhYSv4kS8XSheGLAHCWhIJTJbuC3sL88bNMTtrsBM=",
+			wantErr:  true,
 		},
 	} {
 		t.Run(test.name, func(t *testing.T) {

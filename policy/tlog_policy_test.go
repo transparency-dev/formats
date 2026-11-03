@@ -347,6 +347,16 @@ func TestUnmarshal_Errors(t *testing.T) {
 			errStr: "invalid threshold",
 		},
 		{
+			desc:   "threshold with leading zero",
+			policy: fmt.Sprintf("witness w1 %s\ngroup g1 01 w1\nquorum g1\n", wit1_vkey),
+			errStr: "leading zeros",
+		},
+		{
+			desc:   "zero threshold with leading zero",
+			policy: fmt.Sprintf("witness w1 %s\ngroup g1 00 w1\nquorum g1\n", wit1_vkey),
+			errStr: "leading zeros",
+		},
+		{
 			desc:   "threshold exceeds members",
 			policy: fmt.Sprintf("witness w1 %s\ngroup g1 2 w1\nquorum g1\n", wit1_vkey),
 			errStr: "outside [1, 1]",
