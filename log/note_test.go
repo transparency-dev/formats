@@ -175,6 +175,14 @@ func TestParseCheckpoint(t *testing.T) {
 			sigs:     []note.Signer{lns, k1ns, k2ns, uns},
 			wantErr:  true,
 			wantSigs: 3,
+		}, {
+			// "YmFuYW5hcw==" ("bananas") with non-zero padding bits ('w' -> 'x').
+			desc:     "non-canonical base64 in roothash",
+			logID:    "TestParseCheckpoint",
+			noteBody: "TestParseCheckpoint\n42\nYmFuYW5hcx==\n",
+			sigs:     []note.Signer{lns},
+			wantErr:  true,
+			wantSigs: 1,
 		},
 	} {
 		t.Run(test.desc, func(t *testing.T) {

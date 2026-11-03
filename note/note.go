@@ -51,7 +51,7 @@ func NewSigner(skey string) (Signer, error) {
 	priv2, k, _ := strings.Cut(k, "+")
 	name, k, _ := strings.Cut(k, "+")
 	hash16, key64, _ := strings.Cut(k, "+")
-	key, err := base64.StdEncoding.DecodeString(key64)
+	key, err := base64.StdEncoding.Strict().DecodeString(key64)
 	if priv1 != "PRIVATE" || priv2 != "KEY" || len(hash16) != 8 || err != nil || !isValidName(name) || len(key) == 0 {
 		return nil, errSignerID
 	}
@@ -137,7 +137,7 @@ func NewVerifier(key string) (note.Verifier, error) {
 	if got, want := len(parts), 3; got != want {
 		return nil, fmt.Errorf("key has %d parts, expected %d: %q", got, want, key)
 	}
-	keyBytes, err := base64.StdEncoding.DecodeString(parts[2])
+	keyBytes, err := base64.StdEncoding.Strict().DecodeString(parts[2])
 	if err != nil {
 		return nil, fmt.Errorf("key has invalid base64 %q: %v", parts[2], err)
 	}

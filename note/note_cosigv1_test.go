@@ -771,6 +771,50 @@ func mustECDSASigner(t *testing.T) crypto.Signer {
 	return ecdsaK
 }
 
+func TestCosigV1_RejectNonCanonicalBase64(t *testing.T) {
+	// ML-DSA-44 vkey from TestMLDSAVerifyTorchwood (1313 bytes -> ends in "4=", where '4' has 00 padding bits; '5' sets a padding bit).
+	canonicalMLVK := "witness.example/w1+a0d0cd91+Bhh6t5zW2IMElD4GJw65/1+GnMosGFhPFst8+uCD+C9/lSovRbjzbFPV7YP9rox2T9pHbsqNmvR3GTnwSFLUZIatFUlXBt0CGLU1J75PMs7G1KNj5yL4R8vvInpzaDvlBUoCLjzegUOh7KImnowtDnJRX38puLf1mStewbP61oBYZmIlWhXproauXnBl0VGbqbd8qeLQ96ENJBhFATSuxbQoJZ3dhGwkHnEQUlqHdEPgYXKwuMWfzKz4X+54eDV4c+IOFcU3/Lmis2aqAG0LoAM4X+eE569R0YVmjXdybbqrCx6dc8gwM9DZp7+gUBwWtI6ccaXJoN6kmdPBC6qUv/PHlCaFCNq170DqAbFJauGRUOBKjGyP9mSQaF6yoNrkdEOsSh039J1uaqDD7X+g5KxFWwM+R1X2HibnEW6okJaIM+MaPsAnZeQLPYbaup/2emXDsHj58+b/5S03DRszJJStFlNxHnMTe+aNyj7vbU8/GD5B3T4es6HsvNbF5+w0PRmZ/1Kkkad4+D6aFj7pMU8eVCpMZtdU8zlYcHOyNZssna8mTL11jfq9NpD5wSo+CYAiDZ/hrW9QjUYpqwzUVTr9gN14mBXfax1g9iTxRAId1ZaHBoYqyitNpE2/797iJVEshYXeh49wGPsPUp+GQYUvYVGr0CmtEYEBoXXDYechA+G1dSyKGgeU5R5ufOkLnumvHW060RKxst3eXKMi1uNyEojsTUhHclL44a6irz95MAWE4k7d9E3Tu8S6mct5WVN4TzyFKZ7PPB+mIMhsbg6n5lI62D3gMKGHTJGbGz17iNZwj0FVp5trL4OGiF6qeK2FLXesOlWYOfOFXvfuLZXvNwmry3aSi/ST+65qXHmAGLQ0ip06A8yEUt3zGZ2VI8whagfAXj2CxcFcPVgg9KI+0aJnbldm6KYcaLoI+fs1iyGQ+zgXrejm/hCyGik+JFVfZGlH+hirnNNglxRsJzIYsFT73ss3+29SnAduHZOYFqLs1aNsDytZgEhC37EL8vqIO7jY1MR8ihldBljWiVV+AQiWpyKvseP5SFP82pcfkGi6DbAAQmifLjGGcm9pCqDIUWrXIyiwt/WbtTgzEuQhdtuYEFeK59BSdpXW9UxUAYG8AjlYL+ylVUjbtz9CYGHtaCoi3NxkaRaUZj2Mtx2WQSyDI2uUTUwOpiqVwJEAE3lpOBqHV58hEosDfAxR1A0bw7px4LFqsfuFcapsP1015sb2IIQn8zx8lfIVtTon2jYMyANqACceBA43Vu9+o7ij+wwEVedRsO5d6/F6KZjL+weSiaIzGRQUazSvkMGZr+3rgaol3wgHkBY/AvJRPqxEZA14+e+HVl7rOTR96o20g72AoDnTj+V5LpggrDEd2eJeYR+1SjphxPKE+Y4U4NJ/Zv68Cji9lmIXAo9ohBGxcjkPdw2Ha2HTE0WT3HwROtbBeFfEvKaAkke9VS5fGmPqkLXzuBmZ4OsRM5zwhW0mcZUjWp4anpuSyngVddL3NyTUg2UBoU3sQVAKr/VtboY0Fn6LuSi+jS6IXUhNkTfHEkZXnWN1oYnQs46/iWbJk0NxjPaCIYceU7DZTLpCuPOVRgm31FcF0AZT/T40gbgzAu7isTXhlOtswI0dpT9k2FidQPsrZh9QZr1lZjcyzqt0M2PeYcctUYY/Y75T5ZNBxxmgQ/EDwu6Y1RUAk9xa7ZrIeJ2ZHXGgwIT7yDQoj8c0nlb/k1qqMbqQey/63s4="
+	nonCanonicalMLVK := strings.TrimSuffix(canonicalMLVK, "4=") + "5="
+
+	if _, err := NewMLDSAVerifier(nonCanonicalMLVK); err == nil {
+		t.Error("NewMLDSAVerifier succeeded on non-canonical base64 vkey, want error")
+	}
+	if _, err := NewVerifierForCosignatureV1(nonCanonicalMLVK); err == nil {
+		t.Error("NewVerifierForCosignatureV1 succeeded on non-canonical base64 vkey, want error")
+	}
+	if _, err := NewVerifier(nonCanonicalMLVK); err == nil {
+		t.Error("NewVerifier succeeded on non-canonical base64 vkey, want error")
+	}
+
+	// 76-byte Ed25519 cosigv1 signature ending in "BA==" ('A' -> 'B' sets a padding bit).
+	nonCanonicalSig := note.Signature{Base64: "ZGhGuQAAAABm/qTPeyKXD+R2rzyQsxPiP8mXum7qq/iF0u4vanlqJyocWODBt97w9uL+8qT7S5gxEHWWOworDcFiEBYJXORmnFBOBB=="}
+	if _, err := CosignatureTimestamp(nonCanonicalSig); err == nil {
+		t.Error("CosignatureTimestamp succeeded on non-canonical base64 signature, want error")
+	}
+	if _, err := CoSigV1Timestamp(nonCanonicalSig); err == nil {
+		t.Error("CoSigV1Timestamp succeeded on non-canonical base64 signature, want error")
+	}
+
+	// ML-DSA-44 checkpoint signing and verification with non-canonical base64 root hash ('0=' -> '1=').
+	mlSk, _ := mustGenerateMLDSAKey(t, "mldsa")
+	mlSigner, err := NewMLDSASigner(mlSk)
+	if err != nil {
+		t.Fatal(err)
+	}
+	validMsg := []byte("test\n123\nf+7CoKgXKE/tNys9TTXcr/ad6U/K3xvznmzew9y6SP0=\n")
+	nonCanonicalMsg := []byte("test\n123\nf+7CoKgXKE/tNys9TTXcr/ad6U/K3xvznmzew9y6SP1=\n")
+	if _, err := mlSigner.Sign(nonCanonicalMsg); err == nil {
+		t.Error("MLDSA Sign succeeded on checkpoint with non-canonical base64 root hash, want error")
+	}
+	sig, err := mlSigner.Sign(validMsg)
+	if err != nil {
+		t.Fatalf("Sign(validMsg): %v", err)
+	}
+	if mlSigner.Verifier().Verify(nonCanonicalMsg, sig) {
+		t.Error("MLDSA Verifier().Verify() = true on checkpoint with non-canonical base64 root hash, want false")
+	}
+}
+
 func TestCosigV1_RejectCRLF(t *testing.T) {
 	edSk, edVk := mustGenerateEd25519Key(t, "ed25519")
 	mlSk, mlVk := mustGenerateMLDSAKey(t, "mldsa")

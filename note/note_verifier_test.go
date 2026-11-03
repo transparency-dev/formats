@@ -15,6 +15,7 @@
 package note
 
 import (
+	"strings"
 	"testing"
 
 	"golang.org/x/mod/sumdb/note"
@@ -84,6 +85,11 @@ func TestNewVerifier(t *testing.T) {
 		}, {
 			name: "Static CT works",
 			key:  "ct.googleapis.com/logs/us1/argon2024+7deb49d0+BTBZMBMGByqGSM49AgEGCCqGSM49AwEHA0IABB25bKnLaZTFXOa2pgO70rjcVEMXKJkMBgFQHZ1kwFlGK9zIAx0FtC2oCfeZQe0E++VXuiYE9hFSzhRlOy92K8A=",
+		}, {
+			// "WLc=" ('c' = 011100) -> "WLd=" ('d' = 011101, non-zero padding bit).
+			name:    "ECDSA non-canonical base64",
+			key:     strings.TrimSuffix(sigStoreKey, "c=") + "d=",
+			wantErr: true,
 		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
@@ -114,6 +120,11 @@ func TestNewECDSAVerifier(t *testing.T) {
 		}, {
 			name:    "invalid base64",
 			pubK:    "rekor.sigstore.dev+12345678+THIS_IS_NOT_BASE64!",
+			wantErr: true,
+		}, {
+			// "WLc=" ('c' = 011100) -> "WLd=" ('d' = 011101, non-zero padding bit).
+			name:    "non-canonical base64",
+			pubK:    strings.TrimSuffix(sigStoreKey, "c=") + "d=",
 			wantErr: true,
 		}, {
 			name:    "invalid algo",

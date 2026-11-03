@@ -493,7 +493,7 @@ func vkeyPublicKey(vkey string) ([]byte, error) {
 	if got, want := len(parts), 3; got != want {
 		return nil, fmt.Errorf("vkey has %d parts, expected %d", got, want)
 	}
-	key, err := base64.StdEncoding.DecodeString(parts[2])
+	key, err := base64.StdEncoding.Strict().DecodeString(parts[2])
 	if err != nil {
 		return nil, fmt.Errorf("vkey has invalid base64: %v", err)
 	}

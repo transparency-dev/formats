@@ -60,7 +60,7 @@ func NewMLDSASigner(skey string) (SubtreeSigner, error) {
 	priv2, skey, _ := strings.Cut(skey, "+")
 	name, skey, _ := strings.Cut(skey, "+")
 	hash16, key64, _ := strings.Cut(skey, "+")
-	key, err := base64.StdEncoding.DecodeString(key64)
+	key, err := base64.StdEncoding.Strict().DecodeString(key64)
 	if priv1 != "PRIVATE" || priv2 != "KEY" || len(hash16) != 8 || err != nil || !isValidName(name) || len(key) == 0 {
 		return nil, errSignerID
 	}
@@ -150,7 +150,7 @@ func NewMLDSAVerifier(vkey string) (SubtreeVerifier, error) {
 	}
 	name, vkey, _ := strings.Cut(vkey, "+")
 	hash16, key64, _ := strings.Cut(vkey, "+")
-	keyBytes, err := base64.StdEncoding.DecodeString(key64)
+	keyBytes, err := base64.StdEncoding.Strict().DecodeString(key64)
 	if len(hash16) != 8 || err != nil || !isValidName(name) || len(keyBytes) != mldsa.MLDSA44PublicKeySize+1 {
 		return nil, errVerifierID
 	}
@@ -190,7 +190,7 @@ func NewSignerForCosignatureV1(skey string) (Signer, error) {
 	priv2, skey, _ := strings.Cut(skey, "+")
 	name, skey, _ := strings.Cut(skey, "+")
 	hash16, key64, _ := strings.Cut(skey, "+")
-	key, err := base64.StdEncoding.DecodeString(key64)
+	key, err := base64.StdEncoding.Strict().DecodeString(key64)
 	if priv1 != "PRIVATE" || priv2 != "KEY" || len(hash16) != 8 || err != nil || !isValidName(name) || len(key) == 0 {
 		return nil, errSignerID
 	}
@@ -262,7 +262,7 @@ func NewVerifierForCosignatureV1(vkey string) (note.Verifier, error) {
 	}
 	name, vkey, _ := strings.Cut(vkey, "+")
 	hash16, key64, _ := strings.Cut(vkey, "+")
-	key, err := base64.StdEncoding.DecodeString(key64)
+	key, err := base64.StdEncoding.Strict().DecodeString(key64)
 	if len(hash16) != 8 || err != nil || !isValidName(name) || len(key) == 0 {
 		return nil, errVerifierID
 	}
@@ -305,7 +305,7 @@ func VKeyToCosignatureV1(vkey string) (string, error) {
 	}
 	name, vkey, _ := strings.Cut(vkey, "+")
 	hash16, key64, _ := strings.Cut(vkey, "+")
-	algKey, err := base64.StdEncoding.DecodeString(key64)
+	algKey, err := base64.StdEncoding.Strict().DecodeString(key64)
 	if len(hash16) != 8 || err != nil || !isValidName(name) || len(algKey) == 0 {
 		return "", errVerifierID
 	}
@@ -344,7 +344,7 @@ func CosignatureTimestamp(s note.Signature) (uint64, error) {
 	if strings.ContainsAny(s.Base64, "\r\n") {
 		return 0, errMalformedSig
 	}
-	r, err := base64.StdEncoding.DecodeString(s.Base64)
+	r, err := base64.StdEncoding.Strict().DecodeString(s.Base64)
 	if err != nil {
 		return 0, errMalformedSig
 	}

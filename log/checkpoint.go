@@ -68,7 +68,7 @@ func (c *Checkpoint) Unmarshal(data []byte) ([]byte, error) {
 	if err != nil {
 		return nil, fmt.Errorf("invalid checkpoint - size invalid: %w", err)
 	}
-	h, err := base64.StdEncoding.DecodeString(string(l[2]))
+	h, err := base64.StdEncoding.Strict().DecodeString(string(l[2]))
 	if err != nil {
 		return nil, fmt.Errorf("invalid checkpoint - invalid hash: %w", err)
 	}

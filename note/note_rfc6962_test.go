@@ -91,6 +91,12 @@ func TestVerify(t *testing.T) {
 		wantErr  bool
 	}{
 		{
+			// "2q1K6aiIJR+F7TyhiWOghoWOjY0/3dVBLsBbAvB4xCw=" with non-zero padding bits ('w=' -> 'x=').
+			name:     "non-canonical base64 root hash",
+			cp:       []byte(strings.Replace(romeCP, "4xCw=", "4xCx=", 1)),
+			verifier: "rome.ct.filippo.io/2024h1+78f4abae+BTBZMBMGByqGSM49AgEGCCqGSM49AwEHA0IABAFzPC3fap+uINc1RQ4eRbYMUt84+bKkA8GDLN8KwVdzAgYhYSv4kS8XSheGLAHCWhIJTJbuC3sL88bNMTtrsBM=",
+			wantErr:  true,
+		}, {
 			name:     "works - rome",
 			cp:       []byte(romeCP),
 			verifier: "rome.ct.filippo.io/2024h1+78f4abae+BTBZMBMGByqGSM49AgEGCCqGSM49AwEHA0IABAFzPC3fap+uINc1RQ4eRbYMUt84+bKkA8GDLN8KwVdzAgYhYSv4kS8XSheGLAHCWhIJTJbuC3sL88bNMTtrsBM=",
@@ -222,5 +228,23 @@ func TestRFC6962_RejectCRLF(t *testing.T) {
 	crlfBody := []byte("rome.ct.filippo.io/2024h1\n115474666\n2q1K6aiIJR+F7TyhiWOghoWOjY0/3dVBLsBbAvB4xCw=\r\n")
 	if v.Verify(crlfBody, rawSig) {
 		t.Error("RFC6962 Verifier.Verify() = true with CRLF on root hash line, want false")
+	}
+}
+
+func TestRFC6962_RejectNonCanonicalBase64(t *testing.T) {
+	// 'M=' (index 12 = 001100) -> 'N=' (index 13 = 001101, non-zero padding bit).
+	nonCanonicalVK := "rome.ct.filippo.io/2024h1+78f4abae+BTBZMBMGByqGSM49AgEGCCqGSM49AwEHA0IABAFzPC3fap+uINc1RQ4eRbYMUt84+bKkA8GDLN8KwVdzAgYhYSv4kS8XSheGLAHCWhIJTJbuC3sL88bNMTtrsBN="
+	if _, err := NewRFC6962Verifier(nonCanonicalVK); err == nil {
+		t.Error("NewRFC6962Verifier succeeded on non-canonical base64 vkey, want error")
+	}
+	if _, err := NewVerifier(nonCanonicalVK); err == nil {
+		t.Error("NewVerifier succeeded on non-canonical base64 RFC6962 vkey, want error")
+	}
+
+	// 16-byte payload encoded in base64 ends in "=="; mutating 'A==' to 'B==' sets a padding bit.
+	nonCanonicalSig := base64.StdEncoding.EncodeToString(make([]byte, 16))
+	nonCanonicalSig = strings.TrimSuffix(nonCanonicalSig, "A==") + "B=="
+	if _, err := RFC6962STHTimestamp(note.Signature{Base64: nonCanonicalSig}); err == nil {
+		t.Error("RFC6962STHTimestamp succeeded on non-canonical base64 signature, want error")
 	}
 }
