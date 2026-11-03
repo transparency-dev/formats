@@ -232,6 +232,9 @@ func (p *TLogPolicy) Unmarshal(data []byte) error {
 			case "all":
 				k = len(members)
 			default:
+				if len(threshold) > 1 && threshold[0] == '0' {
+					return fmt.Errorf("invalid threshold %q for group %q: leading zeros not allowed", threshold, name)
+				}
 				u, err := strconv.ParseUint(threshold, 10, 31)
 				if err != nil {
 					return fmt.Errorf("invalid threshold %q for group %q: %w", threshold, name, err)

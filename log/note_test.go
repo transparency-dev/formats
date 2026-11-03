@@ -108,6 +108,14 @@ func TestParseCheckpoint(t *testing.T) {
 			wantSigs: 1,
 		},
 		{
+			desc:     "leading zero in size",
+			logID:    "TestParseCheckpoint",
+			noteBody: "TestParseCheckpoint\n042\nYWJjZGVm\n",
+			sigs:     []note.Signer{lns},
+			wantErr:  true,
+			wantSigs: 1,
+		},
+		{
 			desc:     "log and known1 sig",
 			logID:    "TestParseCheckpoint",
 			noteBody: noteBody,

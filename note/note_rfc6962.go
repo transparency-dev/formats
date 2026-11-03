@@ -241,6 +241,9 @@ func formatRFC6962STH(t uint64, msg []byte) (string, []byte, error) {
 	if len(lines[3]) != 0 {
 		return "", nil, errors.New("extension line(s) present")
 	}
+	if len(lines[1]) > 1 && lines[1][0] == '0' {
+		return "", nil, errors.New("size has leading zeros")
+	}
 	size, err := strconv.ParseUint(lines[1], 10, 64)
 	if err != nil {
 		return "", nil, err
