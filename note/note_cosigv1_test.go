@@ -907,3 +907,28 @@ func TestCosigV1_RejectCRLF(t *testing.T) {
 		}
 	}
 }
+
+func TestMLDSACosigV1_RejectLeadingZeroSize(t *testing.T) {
+	mlSk, _ := mustGenerateMLDSAKey(t, "mldsa")
+	mlSigner, err := NewMLDSASigner(mlSk)
+	if err != nil {
+		t.Fatal(err)
+	}
+	validMsg := []byte("test\n123\nf+7CoKgXKE/tNys9TTXcr/ad6U/K3xvznmzew9y6SP0=\n")
+	sig, err := mlSigner.Sign(validMsg)
+	if err != nil {
+		t.Fatalf("Sign(validMsg): %v", err)
+	}
+	for _, badMsg := range [][]byte{
+		[]byte("test\n00\nf+7CoKgXKE/tNys9TTXcr/ad6U/K3xvznmzew9y6SP0=\n"),
+		[]byte("test\n0123\nf+7CoKgXKE/tNys9TTXcr/ad6U/K3xvznmzew9y6SP0=\n"),
+		[]byte("test\n+123\nf+7CoKgXKE/tNys9TTXcr/ad6U/K3xvznmzew9y6SP0=\n"),
+	} {
+		if _, err := mlSigner.Sign(badMsg); err == nil {
+			t.Errorf("Sign(%q) succeeded, want error", badMsg)
+		}
+		if mlSigner.Verifier().Verify(badMsg, sig) {
+			t.Errorf("Verifier().Verify(%q) = true, want false", badMsg)
+		}
+	}
+}

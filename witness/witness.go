@@ -93,7 +93,7 @@ func ParsePolicy(p []byte) (Group, error) {
 			}
 			components[name] = w
 		case "group":
-			if len(fields) < 3 {
+			if len(fields) < 4 {
 				return Group{}, fmt.Errorf("invalid group definition: %q", line)
 			}
 
@@ -111,13 +111,16 @@ func ParsePolicy(p []byte) (Group, error) {
 			case "all":
 				n = len(childrenNames)
 			default:
+				if len(N) > 1 && N[0] == '0' {
+					return Group{}, fmt.Errorf("invalid threshold %q for group %q: leading zeros not allowed", N, name)
+				}
 				i, err := strconv.ParseUint(N, 10, 8)
 				if err != nil {
 					return Group{}, fmt.Errorf("invalid threshold %q for group %q: %w", N, name, err)
 				}
 				n = int(i)
 			}
-			if c := len(childrenNames); n > c {
+			if c := len(childrenNames); n < 1 || n > c {
 				return Group{}, fmt.Errorf("group with %d children cannot have threshold %d", c, n)
 			}
 
