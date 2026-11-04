@@ -117,3 +117,41 @@ func TestNewSignerVerifier_RejectCRLF(t *testing.T) {
 		}
 	}
 }
+
+func TestNewSignerVerifier_KeyHashValidation(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		skey string
+		vkey string
+	}{
+		{
+			name: "mismatched",
+			skey: "PRIVATE+KEY+Wit1+00000000+AeadRiG7XM4XiieCHzD8lxysXMwcViy5nYsoXURWGrlE",
+			vkey: "PeterNeumann+00000000+ARpc2QcUPDhMQegwxbzhKqiBfsVkmqq/LDE4izWy10TW",
+		},
+		{
+			name: "non-hex",
+			skey: "PRIVATE+KEY+Wit1+zzzzzzzz+AeadRiG7XM4XiieCHzD8lxysXMwcViy5nYsoXURWGrlE",
+			vkey: "PeterNeumann+zzzzzzzz+ARpc2QcUPDhMQegwxbzhKqiBfsVkmqq/LDE4izWy10TW",
+		},
+		{
+			name: "short",
+			skey: "PRIVATE+KEY+Wit1+55ee456+AeadRiG7XM4XiieCHzD8lxysXMwcViy5nYsoXURWGrlE",
+			vkey: "PeterNeumann+c74f20a+ARpc2QcUPDhMQegwxbzhKqiBfsVkmqq/LDE4izWy10TW",
+		},
+		{
+			name: "uppercase",
+			skey: "PRIVATE+KEY+Wit1+55EE4561+AeadRiG7XM4XiieCHzD8lxysXMwcViy5nYsoXURWGrlE",
+			vkey: "PeterNeumann+C74F20A3+ARpc2QcUPDhMQegwxbzhKqiBfsVkmqq/LDE4izWy10TW",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if _, err := NewSigner(tc.skey); err == nil {
+				t.Errorf("NewSigner(%q) succeeded, want error", tc.skey)
+			}
+			if _, err := NewVerifier(tc.vkey); err == nil {
+				t.Errorf("NewVerifier(%q) succeeded, want error", tc.vkey)
+			}
+		})
+	}
+}
