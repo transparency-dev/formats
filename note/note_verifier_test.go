@@ -49,6 +49,11 @@ func TestSignerVerifierFromEd25519Key(t *testing.T) {
 			key:     "logandmap+38581672+Ab/PCr1eCclRPRMBqw/r5An1xO71MCnImLiospEq6b4l",
 			wantErr: true,
 		},
+		{
+			name:    "uppercase hex keyhash",
+			key:     "PRIVATE+KEY+Wit1+55EE4561+AeadRiG7XM4XiieCHzD8lxysXMwcViy5nYsoXURWGrlE",
+			wantErr: true,
+		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			s, v, err := NewEd25519SignerVerifier(test.key)
@@ -137,6 +142,14 @@ func TestNewECDSAVerifier(t *testing.T) {
 		}, {
 			name:    "incorrect keyhash",
 			pubK:    "rekor.sigstore.dev" + "+" + "00000000" + "+" + sigStoreKeyMaterial,
+			wantErr: true,
+		}, {
+			name:    "uppercase hex keyhash",
+			pubK:    "rekor.sigstore.dev" + "+" + strings.ToUpper(sigStoreKeyHash) + "+" + sigStoreKeyMaterial,
+			wantErr: true,
+		}, {
+			name:    "short keyhash",
+			pubK:    "rekor.sigstore.dev" + "+" + sigStoreKeyHash[1:] + "+" + sigStoreKeyMaterial,
 			wantErr: true,
 		},
 	} {
