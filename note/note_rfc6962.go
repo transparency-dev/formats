@@ -56,7 +56,7 @@ func NewRFC6962Verifier(vkey string) (note.Verifier, error) {
 	}
 	name, vkey, _ := strings.Cut(vkey, "+")
 	hash16, key64, _ := strings.Cut(vkey, "+")
-	key, err := base64.StdEncoding.DecodeString(key64)
+	key, err := base64.StdEncoding.Strict().DecodeString(key64)
 	if len(hash16) != 8 || err != nil || !isValidName(name) || len(key) == 0 {
 		return nil, errVerifierID
 	}
@@ -120,7 +120,7 @@ func RFC6962STHTimestamp(s note.Signature) (time.Time, error) {
 	if strings.ContainsAny(s.Base64, "\r\n") {
 		return time.UnixMilli(0), errMalformedSig
 	}
-	r, err := base64.StdEncoding.DecodeString(s.Base64)
+	r, err := base64.StdEncoding.Strict().DecodeString(s.Base64)
 	if err != nil {
 		return time.UnixMilli(0), errMalformedSig
 	}
@@ -245,7 +245,7 @@ func formatRFC6962STH(t uint64, msg []byte) (string, []byte, error) {
 	if err != nil {
 		return "", nil, err
 	}
-	root, err := base64.StdEncoding.DecodeString(lines[2])
+	root, err := base64.StdEncoding.Strict().DecodeString(lines[2])
 	if err != nil {
 		return "", nil, err
 	}

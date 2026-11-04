@@ -224,6 +224,12 @@ func TestUnmarshalLogVerifierName(t *testing.T) {
 }
 
 func TestUnmarshal_Errors(t *testing.T) {
+	_, mldsaVkey, err := f_note.GenerateMLDSAKey("mldsa.example.com")
+	if err != nil {
+		t.Fatalf("GenerateMLDSAKey() failed: %v", err)
+	}
+	// 1313-byte ML-DSA-44 vkey ends in '=' with 2 zero padding bits; incrementing the char before '=' sets the lowest padding bit.
+	nonCanonicalMLDSAVkey := mldsaVkey[:len(mldsaVkey)-2] + string(mldsaVkey[len(mldsaVkey)-2]+1) + "="
 	ecdsaVkey := fmt.Sprintf("ecdsa.example.com+00000000+%s", base64.StdEncoding.EncodeToString([]byte{0x02, 1, 2, 3}))
 	// A well-formed vkey with an unknown algorithm octet and a correctly
 	// computed key id, which golang.org/x/mod/sumdb/note validates.
@@ -264,6 +270,16 @@ func TestUnmarshal_Errors(t *testing.T) {
 			desc:   "log with invalid vkey",
 			policy: "log garbage\nquorum none\n",
 			errStr: "invalid log vkey",
+		},
+		{
+			desc:   "log with non-canonical base64 vkey",
+			policy: fmt.Sprintf("log %s\nquorum none\n", nonCanonicalMLDSAVkey),
+			errStr: "invalid log vkey",
+		},
+		{
+			desc:   "witness with non-canonical base64 vkey",
+			policy: fmt.Sprintf("witness w1 %s\nquorum w1\n", nonCanonicalMLDSAVkey),
+			errStr: "invalid witness vkey",
 		},
 		{
 			desc:   "log with unknown key type",

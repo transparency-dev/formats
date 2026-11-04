@@ -135,6 +135,11 @@ func TestUnmarshalLogState(t *testing.T) {
 			m:       "Log\n123\nThisIsn'tBase64\n",
 			wantErr: true,
 		}, {
+			// "YmFuYW5hcw==" ("bananas") with non-zero padding bits ('w' -> 'x').
+			desc:    "invalid roothash - non-canonical base64",
+			m:       "Log\n123\nYmFuYW5hcx==\n",
+			wantErr: true,
+		}, {
 			desc:    "invalid - CRLF on origin",
 			m:       "Log\r\n123\nYmFuYW5hcw==\n",
 			wantErr: true,

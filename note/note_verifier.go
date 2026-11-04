@@ -49,7 +49,7 @@ func NewEd25519SignerVerifier(skey string) (note.Signer, note.Verifier, error) {
 	if parts[0] != "PRIVATE" || parts[1] != "KEY" {
 		return nil, nil, fmt.Errorf("expected first tokens to be [PRIVATE, KEY]")
 	}
-	key, err := base64.StdEncoding.DecodeString(parts[4])
+	key, err := base64.StdEncoding.Strict().DecodeString(parts[4])
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to decode base64: %v", err)
 	}
@@ -99,7 +99,7 @@ func NewECDSAVerifier(key string) (note.Verifier, error) {
 	if got, want := len(parts), 3; got != want {
 		return nil, fmt.Errorf("key has %d parts, expected %d: %q", got, want, key)
 	}
-	keyBytes, err := base64.StdEncoding.DecodeString(parts[2])
+	keyBytes, err := base64.StdEncoding.Strict().DecodeString(parts[2])
 	if err != nil {
 		return nil, fmt.Errorf("key has invalid base64 %q: %v", parts[2], err)
 	}
