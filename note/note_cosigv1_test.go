@@ -193,7 +193,7 @@ func TestCoSigV1NewVerifier(t *testing.T) {
 			pubK: "remora.n621.de+da77ade7+BOvN63jn/bLvkieywe8R6UYAtVtNbZpXh34x7onlmtw2",
 		}, {
 			name: "works: native algMLDSA44 verifier",
-			pubK: "test+5893dc2c+BtMcFiao6ZOdU6LZ40tLKbsWpDOU8smRapXBIYI3lXyESm62to+/AeDuWOEtbwUNVzrC9FacZ1q+gXES2hAhp5/C1TPwTiO/G+T9x0iAb8gSGkGwsbDJXmQMhsFM+Ub3tB5Fdujz4o7DF3NqCCUMC1zsD7jMyy9BTCFi6Av1I/ZDRQxJJOKFt31l0cJY6OHFcUGMSGSHcGEo839UikbMBlArWRgYk/Ve4aqW0pRl7G46Qk39pu/yFYwhk3gMYMkush5NKQo7EbvhnHvUlQWK27t2VsIbH2p/l9i73UDtEmHeqIMcqtwhCnFoqT6S7cL9/p7NLwxD1gICM0gCZIi3KrbnMFok+5uovBbrF9vISSXX67R1nprdjiE0MGAwZ3Prtt0ah2xchT5I1WgmUGSA0B1cnEDXWneUaA0axw/TQ47x88+jfKIN0kn8rg5bncI5q71hV2mF1n2xuE4G+WOdBRjMVGLWlt1rZcCh8IredoZe3SxWKx7amrLo00lFN8QL8TAw1bvDiFYRqyAZE4Z5M77H8OmAR2QahuZA+d8Q1SXmTdDtOu1RRXtHq54Nm3d2SbQl48UE7BsWvu7YdqGEti5EpTX3oMVmnnjj0FRH2QjlnpaRn5bE8tiblhL31f6KRz37E9lqIUoLuE19OQ+yYOj2B6avwEY6xWq5SrOOhENQKAODXTjacDYVL4Z1hsJA9+7qbFH5S3JjMCs4VFtZHOa4tkxbpO94lfPNnhqDnuFb5xm7sT51/In+xn0vAyCoaaIpm/rwG0nRFZmR6bafSPBJXcnrocdPy86sQ/C3ma7ldByWwsHuEm8YTNABAqn6hNICNECFuoV8EBwnA0BVkhClyjTkPSnyB1CAUEkzQwd/SW7VgjDoI9r6k4ot1oaxD9ZudZor7309jhMIbQhE1ODPMDxFM2B5XvhlJ6nl6r0JUI/q2uLnZGyzKDMGnL+T+uGDN+AvBrg4kyHEM1X39Dkr1XpJIMRlROY+GayJliTQ8eEdZ1yug5C0JGHJ9bEQu/L2Zf084+/+4BAUrrJ4JtmShbYulaDmMVjm72Osu5a9ld7KeZ2hn5uK9yhiUJqeBDGGLmqqZbbUwIRa9OWZoQVU+dCt2ust5migCq69O3H+83U2YKBj9r3QLv6FG/crj3IUrKagKIqv5fT71eeCEmSmdAGqVP+5hxBQMBcISqp+9rqDsS1NLba2YuUWYgFDlQ7Xq915t+d3N5ouHNWJHs1/2V0ZNsSvID1p73sUWVJlh2M4/B8/QT1uvteCPc+yycsJM80Xaomwv9KTfUpyNn60R860zr+Va432W8v5urT1Teu6QCTWKdq3ivhyYREBLvka07jb7SlIees2PKDfvibKBBanF/EmorgkdPIagG/88kT9GtXtOIQp/HJLw3Ej5QPwEgrLYZ0YY6t53ZC6BmjDt0eSEShPmqte74KC7Qgo2hvA3grqp03vA7RG3cMCmtn/k0PH9ZY4ytTF7eozJCRim9AWa0HudpkGKbv3ijxrkBBhAGTCGQe96Tt5nBiKatheV3z4i2o4TtoRC6SEQZUEnWLszXOWtghhfe/V7QqB8jfMLxHW2qkueUkTz2IatYI+2hlkyTQRIKGPjKrnF8qAKz5/PZcoaL6pBaWcpsUEcpwQs6/aT0tmB2UGZNzrj02lREEgGajjuqHMH/rwmqIQTV38KohBniPDkDV9jdIyU1HVlm5dElah29WMC+RWC6bN2GbOvn1+s6iQwNNLUGU=",
+			pubK: "test+31236897+BtMcFiao6ZOdU6LZ40tLKbsWpDOU8smRapXBIYI3lXyESm62to+/AeDuWOEtbwUNVzrC9FacZ1q+gXES2hAhp5/C1TPwTiO/G+T9x0iAb8gSGkGwsbDJXmQMhsFM+Ub3tB5Fdujz4o7DF3NqCCUMC1zsD7jMyy9BTCFi6Av1I/ZDRQxJJOKFt31l0cJY6OHFcUGMSGSHcGEo839UikbMBlArWRgYk/Ve4aqW0pRl7G46Qk39pu/yFYwhk3gMYMkush5NKQo7EbvhnHvUlQWK27t2VsIbH2p/l9i73UDtEmHeqIMcqtwhCnFoqT6S7cL9/p7NLwxD1gICM0gCZIi3KrbnMFok+5uovBbrF9vISSXX67R1nprdjiE0MGAwZ3Prtt0ah2xchT5I1WgmUGSA0B1cnEDXWneUaA0axw/TQ47x88+jfKIN0kn8rg5bncI5q71hV2mF1n2xuE4G+WOdBRjMVGLWlt1rZcCh8IredoZe3SxWKx7amrLo00lFN8QL8TAw1bvDiFYRqyAZE4Z5M77H8OmAR2QahuZA+d8Q1SXmTdDtOu1RRXtHq54Nm3d2SbQl48UE7BsWvu7YdqGEti5EpTX3oMVmnnjj0FRH2QjlnpaRn5bE8tiblhL31f6KRz37E9lqIUoLuE19OQ+yYOj2B6avwEY6xWq5SrOOhENQKAODXTjacDYVL4Z1hsJA9+7qbFH5S3JjMCs4VFtZHOa4tkxbpO94lfPNnhqDnuFb5xm7sT51/In+xn0vAyCoaaIpm/rwG0nRFZmR6bafSPBJXcnrocdPy86sQ/C3ma7ldByWwsHuEm8YTNABAqn6hNICNECFuoV8EBwnA0BVkhClyjTkPSnyB1CAUEkzQwd/SW7VgjDoI9r6k4ot1oaxD9ZudZor7309jhMIbQhE1ODPMDxFM2B5XvhlJ6nl6r0JUI/q2uLnZGyzKDMGnL+T+uGDN+AvBrg4kyHEM1X39Dkr1XpJIMRlROY+GayJliTQ8eEdZ1yug5C0JGHJ9bEQu/L2Zf084+/+4BAUrrJ4JtmShbYulaDmMVjm72Osu5a9ld7KeZ2hn5uK9yhiUJqeBDGGLmqqZbbUwIRa9OWZoQVU+dCt2ust5migCq69O3H+83U2YKBj9r3QLv6FG/crj3IUrKagKIqv5fT71eeCEmSmdAGqVP+5hxBQMBcISqp+9rqDsS1NLba2YuUWYgFDlQ7Xq915t+d3N5ouHNWJHs1/2V0ZNsSvID1p73sUWVJlh2M4/B8/QT1uvteCPc+yycsJM80Xaomwv9KTfUpyNn60R860zr+Va432W8v5urT1Teu6QCTWKdq3ivhyYREBLvka07jb7SlIees2PKDfvibKBBanF/EmorgkdPIagG/88kT9GtXtOIQp/HJLw3Ej5QPwEgrLYZ0YY6t53ZC6BmjDt0eSEShPmqte74KC7Qgo2hvA3grqp03vA7RG3cMCmtn/k0PH9ZY4ytTF7eozJCRim9AWa0HudpkGKbv3ijxrkBBhAGTCGQe96Tt5nBiKatheV3z4i2o4TtoRC6SEQZUEnWLszXOWtghhfe/V7QqB8jfMLxHW2qkueUkTz2IatYI+2hlkyTQRIKGPjKrnF8qAKz5/PZcoaL6pBaWcpsUEcpwQs6/aT0tmB2UGZNzrj02lREEgGajjuqHMH/rwmqIQTV38KohBniPDkDV9jdIyU1HVlm5dElah29WMC+RWC6bN2GbOvn1+s6iQwNNLUGU=",
 		}, {
 			name:    "wrong number of parts",
 			pubK:    "bananas.sigstore.dev+12344556",
@@ -812,6 +812,66 @@ func TestCosigV1_RejectNonCanonicalBase64(t *testing.T) {
 	}
 	if mlSigner.Verifier().Verify(nonCanonicalMsg, sig) {
 		t.Error("MLDSA Verifier().Verify() = true on checkpoint with non-canonical base64 root hash, want false")
+	}
+}
+
+func TestCosigV1_KeyHashValidation(t *testing.T) {
+	const (
+		edSk    = "PRIVATE+KEY+Wit1+55ee4561+AeadRiG7XM4XiieCHzD8lxysXMwcViy5nYsoXURWGrlE"
+		edVk    = "Wit1+55ee4561+AVhZSmQj9+SoL+p/nN0Hh76xXmF7QcHfytUrI1XfSClk"
+		cosigVk = "remora.n621.de+da77ade7+BOvN63jn/bLvkieywe8R6UYAtVtNbZpXh34x7onlmtw2"
+		mlSk    = "PRIVATE+KEY+mldsa+6b9c8425+BqQPO4WbZDu4B20sC1K2ngxNDdGbMCFtlZtqkF5Yw4sT"
+		mlVk    = "witness.example/w1+a0d0cd91+Bhh6t5zW2IMElD4GJw65/1+GnMosGFhPFst8+uCD+C9/lSovRbjzbFPV7YP9rox2T9pHbsqNmvR3GTnwSFLUZIatFUlXBt0CGLU1J75PMs7G1KNj5yL4R8vvInpzaDvlBUoCLjzegUOh7KImnowtDnJRX38puLf1mStewbP61oBYZmIlWhXproauXnBl0VGbqbd8qeLQ96ENJBhFATSuxbQoJZ3dhGwkHnEQUlqHdEPgYXKwuMWfzKz4X+54eDV4c+IOFcU3/Lmis2aqAG0LoAM4X+eE569R0YVmjXdybbqrCx6dc8gwM9DZp7+gUBwWtI6ccaXJoN6kmdPBC6qUv/PHlCaFCNq170DqAbFJauGRUOBKjGyP9mSQaF6yoNrkdEOsSh039J1uaqDD7X+g5KxFWwM+R1X2HibnEW6okJaIM+MaPsAnZeQLPYbaup/2emXDsHj58+b/5S03DRszJJStFlNxHnMTe+aNyj7vbU8/GD5B3T4es6HsvNbF5+w0PRmZ/1Kkkad4+D6aFj7pMU8eVCpMZtdU8zlYcHOyNZssna8mTL11jfq9NpD5wSo+CYAiDZ/hrW9QjUYpqwzUVTr9gN14mBXfax1g9iTxRAId1ZaHBoYqyitNpE2/797iJVEshYXeh49wGPsPUp+GQYUvYVGr0CmtEYEBoXXDYechA+G1dSyKGgeU5R5ufOkLnumvHW060RKxst3eXKMi1uNyEojsTUhHclL44a6irz95MAWE4k7d9E3Tu8S6mct5WVN4TzyFKZ7PPB+mIMhsbg6n5lI62D3gMKGHTJGbGz17iNZwj0FVp5trL4OGiF6qeK2FLXesOlWYOfOFXvfuLZXvNwmry3aSi/ST+65qXHmAGLQ0ip06A8yEUt3zGZ2VI8whagfAXj2CxcFcPVgg9KI+0aJnbldm6KYcaLoI+fs1iyGQ+zgXrejm/hCyGik+JFVfZGlH+hirnNNglxRsJzIYsFT73ss3+29SnAduHZOYFqLs1aNsDytZgEhC37EL8vqIO7jY1MR8ihldBljWiVV+AQiWpyKvseP5SFP82pcfkGi6DbAAQmifLjGGcm9pCqDIUWrXIyiwt/WbtTgzEuQhdtuYEFeK59BSdpXW9UxUAYG8AjlYL+ylVUjbtz9CYGHtaCoi3NxkaRaUZj2Mtx2WQSyDI2uUTUwOpiqVwJEAE3lpOBqHV58hEosDfAxR1A0bw7px4LFqsfuFcapsP1015sb2IIQn8zx8lfIVtTon2jYMyANqACceBA43Vu9+o7ij+wwEVedRsO5d6/F6KZjL+weSiaIzGRQUazSvkMGZr+3rgaol3wgHkBY/AvJRPqxEZA14+e+HVl7rOTR96o20g72AoDnTj+V5LpggrDEd2eJeYR+1SjphxPKE+Y4U4NJ/Zv68Cji9lmIXAo9ohBGxcjkPdw2Ha2HTE0WT3HwROtbBeFfEvKaAkke9VS5fGmPqkLXzuBmZ4OsRM5zwhW0mcZUjWp4anpuSyngVddL3NyTUg2UBoU3sQVAKr/VtboY0Fn6LuSi+jS6IXUhNkTfHEkZXnWN1oYnQs46/iWbJk0NxjPaCIYceU7DZTLpCuPOVRgm31FcF0AZT/T40gbgzAu7isTXhlOtswI0dpT9k2FidQPsrZh9QZr1lZjcyzqt0M2PeYcctUYY/Y75T5ZNBxxmgQ/EDwu6Y1RUAk9xa7ZrIeJ2ZHXGgwIT7yDQoj8c0nlb/k1qqMbqQey/63s4="
+	)
+
+	withKeyHash := func(key string, mutate func(string) string) string {
+		prefix := ""
+		if after, ok := strings.CutPrefix(key, "PRIVATE+KEY+"); ok {
+			prefix = "PRIVATE+KEY+"
+			key = after
+		}
+		name, rest, _ := strings.Cut(key, "+")
+		hash, b64, _ := strings.Cut(rest, "+")
+		return prefix + name + "+" + mutate(hash) + "+" + b64
+	}
+
+	mutations := []struct {
+		name   string
+		mutate func(string) string
+	}{
+		{"mismatched", func(string) string { return "00000000" }},
+		{"non-hex", func(string) string { return "zzzzzzzz" }},
+		{"short", func(h string) string { return h[:7] }},
+		{"uppercase", strings.ToUpper},
+	}
+
+	for _, target := range []struct {
+		name string
+		key  string
+		fn   func(string) error
+	}{
+		{"NewSignerForCosignatureV1/Ed25519", edSk, func(k string) error { _, err := NewSignerForCosignatureV1(k); return err }},
+		{"NewSignerForCosignatureV1/MLDSA", mlSk, func(k string) error { _, err := NewSignerForCosignatureV1(k); return err }},
+		{"NewMLDSASigner", mlSk, func(k string) error { _, err := NewMLDSASigner(k); return err }},
+		{"NewVerifierForCosignatureV1/Ed25519", edVk, func(k string) error { _, err := NewVerifierForCosignatureV1(k); return err }},
+		{"NewVerifierForCosignatureV1/CosigV1", cosigVk, func(k string) error { _, err := NewVerifierForCosignatureV1(k); return err }},
+		{"NewVerifierForCosignatureV1/MLDSA", mlVk, func(k string) error { _, err := NewVerifierForCosignatureV1(k); return err }},
+		{"NewMLDSAVerifier", mlVk, func(k string) error { _, err := NewMLDSAVerifier(k); return err }},
+		{"VKeyToCosignatureV1", edVk, func(k string) error { _, err := VKeyToCosignatureV1(k); return err }},
+	} {
+		t.Run(target.name, func(t *testing.T) {
+			if err := target.fn(target.key); err != nil {
+				t.Fatalf("valid key rejected: %v", err)
+			}
+			for _, m := range mutations {
+				t.Run(m.name, func(t *testing.T) {
+					badKey := withKeyHash(target.key, m.mutate)
+					if err := target.fn(badKey); err == nil {
+						t.Errorf("succeeded on %s key hash (%q), want error", m.name, badKey)
+					}
+				})
+			}
+		})
 	}
 }
 

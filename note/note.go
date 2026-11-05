@@ -64,7 +64,7 @@ func NewSigner(skey string) (Signer, error) {
 		// This has the benefit that all signers from this package carry a Verifier() getter.
 
 		// Adapted from sumdb/note/note.go
-		hash, err := strconv.ParseUint(hash16, 16, 32)
+		hash, err := parseKeyHash(hash16)
 		if err != nil {
 			return nil, errSignerID
 		}
@@ -74,14 +74,14 @@ func NewSigner(skey string) (Signer, error) {
 
 		s := &signer{
 			name: name,
-			hash: uint32(hash),
+			hash: hash,
 		}
 		if len(key) != 32 {
 			return nil, errSignerID
 		}
 		key = ed25519.NewKeyFromSeed(key)
 		pubkey := append([]byte{algEd25519}, key[32:]...)
-		if uint32(hash) != keyHashEd25519(name, pubkey) {
+		if hash != keyHashEd25519(name, pubkey) {
 			return nil, errSignerHash
 		}
 
@@ -137,6 +137,9 @@ func NewVerifier(key string) (note.Verifier, error) {
 	if got, want := len(parts), 3; got != want {
 		return nil, fmt.Errorf("key has %d parts, expected %d: %q", got, want, key)
 	}
+	if _, err := parseKeyHash(parts[1]); err != nil {
+		return nil, fmt.Errorf("key has invalid keyhash %q: %v", parts[1], err)
+	}
 	keyBytes, err := base64.StdEncoding.Strict().DecodeString(parts[2])
 	if err != nil {
 		return nil, fmt.Errorf("key has invalid base64 %q: %v", parts[2], err)
@@ -177,4 +180,22 @@ func (v *verifier) KeyHash() uint32 {
 // Verify checks that the provided sig is valid over msg for the key this verifier is based on.
 func (v *verifier) Verify(msg, sig []byte) bool {
 	return v.v(msg, sig)
+}
+
+// parseKeyHash parses a 4-byte key hash encoded as 8 lowercase hexadecimal characters.
+func parseKeyHash(hash16 string) (uint32, error) {
+	if len(hash16) != 8 {
+		return 0, errInvalidHash
+	}
+	for i := 0; i < len(hash16); i++ {
+		c := hash16[i]
+		if (c < '0' || c > '9') && (c < 'a' || c > 'f') {
+			return 0, errInvalidHash
+		}
+	}
+	h, err := strconv.ParseUint(hash16, 16, 32)
+	if err != nil {
+		return 0, errInvalidHash
+	}
+	return uint32(h), nil
 }

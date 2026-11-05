@@ -15,7 +15,6 @@ import (
 	"fmt"
 	"math"
 	"math/bits"
-	"strconv"
 	"strings"
 	"time"
 	"unicode"
@@ -64,7 +63,7 @@ func NewMLDSASigner(skey string) (SubtreeSigner, error) {
 	if priv1 != "PRIVATE" || priv2 != "KEY" || len(hash16) != 8 || err != nil || !isValidName(name) || len(key) == 0 {
 		return nil, errSignerID
 	}
-	hash, err := strconv.ParseUint(hash16, 16, 32)
+	hash, err := parseKeyHash(hash16)
 	if err != nil {
 		return nil, errInvalidHash
 	}
@@ -84,7 +83,7 @@ func NewMLDSASigner(skey string) (SubtreeSigner, error) {
 	if err != nil {
 		return nil, err
 	}
-	if s.KeyHash() != uint32(hash) {
+	if s.KeyHash() != hash {
 		return nil, errInvalidHash
 	}
 	return s, nil
@@ -154,6 +153,10 @@ func NewMLDSAVerifier(vkey string) (SubtreeVerifier, error) {
 	if len(hash16) != 8 || err != nil || !isValidName(name) || len(keyBytes) != mldsa.MLDSA44PublicKeySize+1 {
 		return nil, errVerifierID
 	}
+	hash, err := parseKeyHash(hash16)
+	if err != nil {
+		return nil, errInvalidHash
+	}
 	alg, pubKeyBytes := keyBytes[0], keyBytes[1:]
 	if alg != algMLDSA44 {
 		return nil, errVerifierID
@@ -162,6 +165,9 @@ func NewMLDSAVerifier(vkey string) (SubtreeVerifier, error) {
 	v := &subtreeVerifier{
 		name:    name,
 		keyHash: keyHashMLDSA(name, keyBytes),
+	}
+	if hash != v.keyHash {
+		return nil, errInvalidHash
 	}
 
 	pubKey, err := mldsa.NewPublicKey(mldsa.MLDSA44(), pubKeyBytes)
@@ -194,6 +200,10 @@ func NewSignerForCosignatureV1(skey string) (Signer, error) {
 	if priv1 != "PRIVATE" || priv2 != "KEY" || len(hash16) != 8 || err != nil || !isValidName(name) || len(key) == 0 {
 		return nil, errSignerID
 	}
+	hash, err := parseKeyHash(hash16)
+	if err != nil {
+		return nil, errInvalidHash
+	}
 
 	s := &signer{name: name}
 
@@ -207,7 +217,11 @@ func NewSignerForCosignatureV1(skey string) (Signer, error) {
 			return nil, errSignerID
 		}
 		key := ed25519.NewKeyFromSeed(key)
-		pubkey := append([]byte{algEd25519CosignatureV1}, key.Public().(ed25519.PublicKey)...)
+		pub := key.Public().(ed25519.PublicKey)
+		if hash != keyHashEd25519(name, append([]byte{alg}, pub...)) {
+			return nil, errInvalidHash
+		}
+		pubkey := append([]byte{algEd25519CosignatureV1}, pub...)
 		s.hash = keyHashEd25519(name, pubkey)
 		s.sign = func(msg []byte) ([]byte, error) {
 			t := uint64(time.Now().Unix())
@@ -235,6 +249,9 @@ func NewSignerForCosignatureV1(skey string) (Signer, error) {
 		stSigner, err := NewMLDSASignerFromCrypto(name, priv)
 		if err != nil {
 			return nil, err
+		}
+		if hash != stSigner.KeyHash() {
+			return nil, errInvalidHash
 		}
 		s.sign = stSigner.Sign
 		s.verify = stSigner.Verifier().Verify
@@ -266,6 +283,10 @@ func NewVerifierForCosignatureV1(vkey string) (note.Verifier, error) {
 	if len(hash16) != 8 || err != nil || !isValidName(name) || len(key) == 0 {
 		return nil, errVerifierID
 	}
+	hash, err := parseKeyHash(hash16)
+	if err != nil {
+		return nil, errInvalidHash
+	}
 
 	v := &verifier{
 		name: name,
@@ -280,6 +301,9 @@ func NewVerifierForCosignatureV1(vkey string) (note.Verifier, error) {
 		if len(key) != 32 {
 			return nil, errVerifierID
 		}
+		if hash != keyHashEd25519(name, append([]byte{alg}, key...)) {
+			return nil, errInvalidHash
+		}
 		v.keyHash = keyHashEd25519(name, append([]byte{algEd25519CosignatureV1}, key...))
 		v.v = verifyEd25519CosigV1(key)
 
@@ -288,6 +312,9 @@ func NewVerifierForCosignatureV1(vkey string) (note.Verifier, error) {
 			return nil, errVerifierID
 		}
 		v.keyHash = keyHashMLDSA(name, append([]byte{algMLDSA44}, key...))
+		if hash != v.keyHash {
+			return nil, errInvalidHash
+		}
 		pubKey, err := mldsa.NewPublicKey(mldsa.MLDSA44(), key)
 		if err != nil {
 			return nil, err
@@ -314,12 +341,12 @@ func VKeyToCosignatureV1(vkey string) (string, error) {
 	if alg != algEd25519 {
 		return "", errVerifierAlg
 	}
-	hash, err := strconv.ParseUint(hash16, 16, 32)
+	hash, err := parseKeyHash(hash16)
 	if err != nil {
 		return "", errInvalidHash
 	}
 
-	if uint32(hash) != keyHashEd25519(name, algKey) {
+	if hash != keyHashEd25519(name, algKey) {
 		return "", errInvalidHash
 	}
 	if len(key) != 32 {

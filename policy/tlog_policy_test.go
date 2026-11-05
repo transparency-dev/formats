@@ -81,15 +81,15 @@ func genVkey(name string) string {
 }
 
 // rewrapVkey rewraps the public key from vkey with the given algorithm
-// octet under the given key name (with a placeholder key id, which
-// cosignature verifiers do not validate).
+// octet under the given key name.
 func rewrapVkey(vkey string, alg byte, name string) string {
 	key, err := vkeyPublicKey(vkey)
 	if err != nil {
 		panic(fmt.Sprintf("vkeyPublicKey(%q): %v", vkey, err))
 	}
 	key[0] = alg
-	return fmt.Sprintf("%s+00000000+%s", name, base64.StdEncoding.EncodeToString(key))
+	h := sha256.Sum256(append([]byte(name+"\n"), key...))
+	return fmt.Sprintf("%s+%08x+%s", name, h[:4], base64.StdEncoding.EncodeToString(key))
 }
 
 func TestUnmarshal(t *testing.T) {
@@ -305,6 +305,11 @@ func TestUnmarshal_Errors(t *testing.T) {
 			desc:   "witness with plain ed25519 vkey",
 			policy: fmt.Sprintf("witness w1 %s\nquorum w1\n", wit1_ed25519_vkey),
 			errStr: "key type 0x01 is not a cosignature key type",
+		},
+		{
+			desc:   "witness with mismatched key hash",
+			policy: fmt.Sprintf("witness w1 %s\nquorum w1\n", "Wit1+00000000+"+strings.SplitN(wit1_vkey, "+", 3)[2]),
+			errStr: "invalid witness vkey",
 		},
 		{
 			desc:   "witness named none",
