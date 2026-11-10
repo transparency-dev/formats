@@ -72,6 +72,14 @@ func TestUnmarshalLogState(t *testing.T) {
 				Hash:   []byte("bananas"),
 			},
 		}, {
+			desc: "valid size zero",
+			m:    "Log\n0\nYmFuYW5hcw==\n",
+			want: log.Checkpoint{
+				Origin: "Log",
+				Size:   0,
+				Hash:   []byte("bananas"),
+			},
+		}, {
 			desc: "valid with different origin",
 			m:    "Banana\n9944\ndGhlIHZpZXcgZnJvbSB0aGUgdHJlZSB0b3BzIGlzIGdyZWF0IQ==\n",
 			want: log.Checkpoint{
@@ -125,6 +133,18 @@ func TestUnmarshalLogState(t *testing.T) {
 		}, {
 			desc:    "invalid size - negative",
 			m:       "Log\n-34\ndGhlIHZpZXcgZnJvbSB0aGUgdHJlZSB0b3BzIGlzIGdyZWF0IQ==\n",
+			wantErr: true,
+		}, {
+			desc:    "invalid size - leading zero (00)",
+			m:       "Log\n00\ndGhlIHZpZXcgZnJvbSB0aGUgdHJlZSB0b3BzIGlzIGdyZWF0IQ==\n",
+			wantErr: true,
+		}, {
+			desc:    "invalid size - leading zero (0123)",
+			m:       "Log\n0123\ndGhlIHZpZXcgZnJvbSB0aGUgdHJlZSB0b3BzIGlzIGdyZWF0IQ==\n",
+			wantErr: true,
+		}, {
+			desc:    "invalid size - plus sign",
+			m:       "Log\n+123\ndGhlIHZpZXcgZnJvbSB0aGUgdHJlZSB0b3BzIGlzIGdyZWF0IQ==\n",
 			wantErr: true,
 		}, {
 			desc:    "invalid size - too large",

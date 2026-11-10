@@ -64,6 +64,9 @@ func (c *Checkpoint) Unmarshal(data []byte) ([]byte, error) {
 	if len(origin) == 0 {
 		return nil, errors.New("invalid checkpoint - empty origin")
 	}
+	if len(l[1]) > 1 && l[1][0] == '0' {
+		return nil, errors.New("invalid checkpoint - size has leading zeros")
+	}
 	size, err := strconv.ParseUint(string(l[1]), 10, 64)
 	if err != nil {
 		return nil, fmt.Errorf("invalid checkpoint - size invalid: %w", err)

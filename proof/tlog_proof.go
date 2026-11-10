@@ -83,9 +83,12 @@ func (p *TLogProof) Unmarshal(data []byte) error {
 	if !ok {
 		return fmt.Errorf("tlog proof missing required index")
 	}
-	idx, err = strconv.ParseUint(idxStr, 10, 64)
+	if len(idxStr) > 1 && idxStr[0] == '0' {
+		return fmt.Errorf("tlog proof index has leading zeros: %q", idxStr)
+	}
+	idx, err = strconv.ParseUint(idxStr, 10, 63)
 	if err != nil {
-		return fmt.Errorf("tlog proof index not a valid uint64: %w", err)
+		return fmt.Errorf("tlog proof index not a valid int64: %w", err)
 	}
 
 	var hashes [][sha256.Size]byte

@@ -151,6 +151,27 @@ func TestParsePolicy_Errors(t *testing.T) {
 			errStr: "invalid threshold",
 		},
 		{
+			desc: "threshold with leading zero",
+			policy: `witness w1 sigsum.org+e4ade967+AZuUY6B08pW3QVHu8uvsrxWPcAv9nykap2Nb4oxCee+r https://sigsum.org/witness/
+					 group g1 01 w1
+					 quorum g1`,
+			errStr: "leading zeros",
+		},
+		{
+			desc: "zero threshold",
+			policy: `witness w1 sigsum.org+e4ade967+AZuUY6B08pW3QVHu8uvsrxWPcAv9nykap2Nb4oxCee+r https://sigsum.org/witness/
+					 group g1 0 w1
+					 quorum g1`,
+			errStr: "cannot have threshold 0",
+		},
+		{
+			desc: "group without members",
+			policy: `witness w1 sigsum.org+e4ade967+AZuUY6B08pW3QVHu8uvsrxWPcAv9nykap2Nb4oxCee+r https://sigsum.org/witness/
+					 group g1 all
+					 quorum g1`,
+			errStr: "invalid group definition",
+		},
+		{
 			desc:   "witness name is keyword",
 			policy: `witness all sigsum.org+e4ade967+AZuUY6B08pW3QVHu8uvsrxWPcAv9nykap2Nb4oxCee+r https://sigsum.org/witness/`,
 			errStr: "invalid witness name",

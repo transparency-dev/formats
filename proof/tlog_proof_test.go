@@ -19,6 +19,7 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"fmt"
+	"math"
 	"strings"
 	"testing"
 )
@@ -99,12 +100,37 @@ func TestUnmarshalErrors(t *testing.T) {
 		{
 			name:          "invalid index - not a number",
 			proof:         []byte("c2sp.org/tlog-proof@v1\nindex notanumber\n\ncheckpoint\n"),
-			wantErrSubstr: "not a valid uint64",
+			wantErrSubstr: "not a valid",
 		},
 		{
 			name:          "invalid index - negative",
 			proof:         []byte("c2sp.org/tlog-proof@v1\nindex -5\n\ncheckpoint\n"),
-			wantErrSubstr: "not a valid uint64",
+			wantErrSubstr: "not a valid",
+		},
+		{
+			name:          "invalid index - plus sign",
+			proof:         []byte("c2sp.org/tlog-proof@v1\nindex +1\n\ncheckpoint\n"),
+			wantErrSubstr: "not a valid",
+		},
+		{
+			name:          "invalid index - leading zero (00)",
+			proof:         []byte("c2sp.org/tlog-proof@v1\nindex 00\n\ncheckpoint\n"),
+			wantErrSubstr: "leading zeros",
+		},
+		{
+			name:          "invalid index - leading zero (007)",
+			proof:         []byte("c2sp.org/tlog-proof@v1\nindex 007\n\ncheckpoint\n"),
+			wantErrSubstr: "leading zeros",
+		},
+		{
+			name:          "invalid index - 2^63",
+			proof:         []byte("c2sp.org/tlog-proof@v1\nindex 9223372036854775808\n\ncheckpoint\n"),
+			wantErrSubstr: "not a valid",
+		},
+		{
+			name:          "invalid index - MaxUint64",
+			proof:         []byte("c2sp.org/tlog-proof@v1\nindex 18446744073709551615\n\ncheckpoint\n"),
+			wantErrSubstr: "not a valid",
 		},
 		{
 			name:          "invalid hash base64",
@@ -209,6 +235,14 @@ func TestRoundTrip(t *testing.T) {
 			name: "empty hashes",
 			proof: TLogProof{
 				Index:      789,
+				Hashes:     nil,
+				Checkpoint: []byte("checkpoint\n"),
+			},
+		},
+		{
+			name: "max index (2^63 - 1)",
+			proof: TLogProof{
+				Index:      math.MaxInt64,
 				Hashes:     nil,
 				Checkpoint: []byte("checkpoint\n"),
 			},
