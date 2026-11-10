@@ -24,7 +24,6 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
-	"strconv"
 	"strings"
 
 	"golang.org/x/mod/sumdb/note"
@@ -48,6 +47,9 @@ func NewEd25519SignerVerifier(skey string) (note.Signer, note.Verifier, error) {
 	}
 	if parts[0] != "PRIVATE" || parts[1] != "KEY" {
 		return nil, nil, fmt.Errorf("expected first tokens to be [PRIVATE, KEY]")
+	}
+	if _, err := parseKeyHash(parts[3]); err != nil {
+		return nil, nil, fmt.Errorf("invalid keyhash: %v", err)
 	}
 	key, err := base64.StdEncoding.Strict().DecodeString(parts[4])
 	if err != nil {
@@ -112,12 +114,12 @@ func NewECDSAVerifier(key string) (note.Verifier, error) {
 	der := keyBytes[1:]
 	kh := keyHashECDSA(der)
 
-	khProvided, err := strconv.ParseUint(parts[1], 16, 32)
+	khProvided, err := parseKeyHash(parts[1])
 	if err != nil {
 		return nil, fmt.Errorf("invalid key, couldn't parse keyhash: %v", err)
 	}
-	if uint32(khProvided) != kh {
-		return nil, fmt.Errorf("invalid keyhash %x, expected %x", khProvided, kh)
+	if khProvided != kh {
+		return nil, fmt.Errorf("invalid keyhash %08x, expected %08x", khProvided, kh)
 	}
 
 	k, err := x509.ParsePKIXPublicKey(der)

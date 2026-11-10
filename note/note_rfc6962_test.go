@@ -248,3 +248,20 @@ func TestRFC6962_RejectNonCanonicalBase64(t *testing.T) {
 		t.Error("RFC6962STHTimestamp succeeded on non-canonical base64 signature, want error")
 	}
 }
+
+func TestRFC6962_KeyHashValidation(t *testing.T) {
+	const keyB64 = "BTBZMBMGByqGSM49AgEGCCqGSM49AwEHA0IABAFzPC3fap+uINc1RQ4eRbYMUt84+bKkA8GDLN8KwVdzAgYhYSv4kS8XSheGLAHCWhIJTJbuC3sL88bNMTtrsBM="
+	for _, badVK := range []string{
+		"rome.ct.filippo.io/2024h1+00000000+" + keyB64,
+		"rome.ct.filippo.io/2024h1+zzzzzzzz+" + keyB64,
+		"rome.ct.filippo.io/2024h1+78f4aba+" + keyB64,
+		"rome.ct.filippo.io/2024h1+78F4ABAE+" + keyB64,
+	} {
+		if _, err := NewRFC6962Verifier(badVK); err == nil {
+			t.Errorf("NewRFC6962Verifier(%q) succeeded, want error", badVK)
+		}
+		if _, err := NewVerifier(badVK); err == nil {
+			t.Errorf("NewVerifier(%q) succeeded, want error", badVK)
+		}
+	}
+}

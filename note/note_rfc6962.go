@@ -60,6 +60,10 @@ func NewRFC6962Verifier(vkey string) (note.Verifier, error) {
 	if len(hash16) != 8 || err != nil || !isValidName(name) || len(key) == 0 {
 		return nil, errVerifierID
 	}
+	hash, err := parseKeyHash(hash16)
+	if err != nil {
+		return nil, errInvalidHash
+	}
 
 	v := &rfc6962Verifer{
 		name: name,
@@ -77,6 +81,9 @@ func NewRFC6962Verifier(vkey string) (note.Verifier, error) {
 
 	logID := sha256.Sum256(key)
 	v.keyHash = rfc6962Keyhash(name, logID)
+	if hash != v.keyHash {
+		return nil, errInvalidHash
+	}
 	v.v = verifyRFC6962(pubK)
 
 	return v, nil
