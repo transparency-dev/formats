@@ -41,7 +41,9 @@ func TestSignerVerifier(t *testing.T) {
 				t.Fatalf("NewVerifier: %v", err)
 			}
 			root := sha256.Sum256([]byte("blah"))
-			checkRoundTrip(t, fmt.Sprintf("%s\n0\n%s\n", test.name, base64.StdEncoding.EncodeToString(root[:])), ns, nv)
+			msg := fmt.Sprintf("%s\n0\n%s\n", test.name, base64.StdEncoding.EncodeToString(root[:]))
+			checkRoundTrip(t, msg, ns, nv)
+			checkRoundTrip(t, msg, ns, ns.Verifier())
 		})
 	}
 }

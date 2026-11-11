@@ -89,7 +89,7 @@ func NewSigner(skey string) (Signer, error) {
 			return ed25519.Sign(key, msg), nil
 		}
 		s.verify = func(msg, sig []byte) bool {
-			return ed25519.Verify(key, msg, sig)
+			return ed25519.Verify(pubkey[1:], msg, sig)
 		}
 
 		return s, nil
