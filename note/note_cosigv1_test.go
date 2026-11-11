@@ -5,12 +5,16 @@
 package note
 
 import (
+	"bytes"
 	"crypto"
 	"crypto/ecdsa"
+	"crypto/ed25519"
 	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/base64"
+	"errors"
+	"io"
 	"strings"
 	"testing"
 	"time"
@@ -990,5 +994,385 @@ func TestMLDSACosigV1_RejectLeadingZeroSize(t *testing.T) {
 		if mlSigner.Verifier().Verify(badMsg, sig) {
 			t.Errorf("Verifier().Verify(%q) = true, want false", badMsg)
 		}
+	}
+}
+
+func TestGenerateCosignatureV1Key(t *testing.T) {
+	for _, tc := range []struct {
+		desc    string
+		rand    io.Reader
+		keyName string
+		wantErr bool
+	}{
+		{
+			desc:    "valid name with rand.Reader",
+			rand:    rand.Reader,
+			keyName: "witness.example/w1",
+		},
+		{
+			desc:    "valid name with nil reader",
+			rand:    nil,
+			keyName: "witness.example/nil-reader",
+		},
+		{
+			desc:    "valid max-length 255-byte name",
+			rand:    rand.Reader,
+			keyName: strings.Repeat("w", 255),
+		},
+		{
+			desc:    "empty name",
+			rand:    rand.Reader,
+			keyName: "",
+			wantErr: true,
+		},
+		{
+			desc:    "name with space",
+			rand:    rand.Reader,
+			keyName: "invalid name",
+			wantErr: true,
+		},
+		{
+			desc:    "name with tab",
+			rand:    rand.Reader,
+			keyName: "invalid\tname",
+			wantErr: true,
+		},
+		{
+			desc:    "name with newline",
+			rand:    rand.Reader,
+			keyName: "invalid\nname",
+			wantErr: true,
+		},
+		{
+			desc:    "name with plus",
+			rand:    rand.Reader,
+			keyName: "invalid+name",
+			wantErr: true,
+		},
+		{
+			desc:    "name exceeds 255 bytes",
+			rand:    rand.Reader,
+			keyName: strings.Repeat("w", 256),
+			wantErr: true,
+		},
+		{
+			desc:    "name with invalid UTF-8",
+			rand:    rand.Reader,
+			keyName: "invalid\xffname",
+			wantErr: true,
+		},
+		{
+			desc:    "short reader fails",
+			rand:    bytes.NewReader([]byte{1, 2, 3}),
+			keyName: "witness.example/short",
+			wantErr: true,
+		},
+	} {
+		t.Run(tc.desc, func(t *testing.T) {
+			skey, vkey, err := GenerateCosignatureV1Key(tc.rand, tc.keyName)
+			if gotErr := err != nil; gotErr != tc.wantErr {
+				t.Fatalf("GenerateCosignatureV1Key(%q) error = %v, wantErr %v", tc.keyName, err, tc.wantErr)
+			}
+			if tc.wantErr {
+				return
+			}
+
+			// Check raw algorithm byte 0x04 on both skey and vkey.
+			sParts := strings.SplitN(skey, "+", 5)
+			if len(sParts) != 5 || sParts[0] != "PRIVATE" || sParts[1] != "KEY" || sParts[2] != tc.keyName {
+				t.Fatalf("unexpected skey format: %q", skey)
+			}
+			rawPriv, err := base64.StdEncoding.Strict().DecodeString(sParts[4])
+			if err != nil {
+				t.Fatalf("decoding skey base64: %v", err)
+			}
+			if len(rawPriv) != 1+ed25519.SeedSize || rawPriv[0] != algEd25519CosignatureV1 {
+				t.Fatalf("unexpected skey bytes: len=%d, alg=0x%02x", len(rawPriv), rawPriv[0])
+			}
+
+			vParts := strings.SplitN(vkey, "+", 3)
+			if len(vParts) != 3 || vParts[0] != tc.keyName || vParts[1] != sParts[3] {
+				t.Fatalf("unexpected vkey format: %q (skey hash %q)", vkey, sParts[3])
+			}
+			rawPub, err := base64.StdEncoding.Strict().DecodeString(vParts[2])
+			if err != nil {
+				t.Fatalf("decoding vkey base64: %v", err)
+			}
+			if len(rawPub) != 1+ed25519.PublicKeySize || rawPub[0] != algEd25519CosignatureV1 {
+				t.Fatalf("unexpected vkey bytes: len=%d, alg=0x%02x", len(rawPub), rawPub[0])
+			}
+
+			// Round-trip signing and verification across all signer and verifier constructors.
+			s1, err := NewSignerForCosignatureV1(skey)
+			if err != nil {
+				t.Fatalf("NewSignerForCosignatureV1: %v", err)
+			}
+			s2, err := NewSigner(skey)
+			if err != nil {
+				t.Fatalf("NewSigner: %v", err)
+			}
+
+			v1, err := NewVerifier(vkey)
+			if err != nil {
+				t.Fatalf("NewVerifier: %v", err)
+			}
+			v2, err := NewVerifierForCosignatureV1(vkey)
+			if err != nil {
+				t.Fatalf("NewVerifierForCosignatureV1: %v", err)
+			}
+			v3, err := NewStrictVerifierForCosignatureV1(vkey)
+			if err != nil {
+				t.Fatalf("NewStrictVerifierForCosignatureV1: %v", err)
+			}
+
+			verifiers := []struct {
+				name string
+				v    note.Verifier
+			}{
+				{"NewSignerForCosignatureV1.Verifier()", s1.Verifier()},
+				{"NewSigner.Verifier()", s2.Verifier()},
+				{"NewVerifier", v1},
+				{"NewVerifierForCosignatureV1", v2},
+				{"NewStrictVerifierForCosignatureV1", v3},
+			}
+
+			msg := "origin.example/log\n42\nf+7CoKgXKE/tNys9TTXcr/ad6U/K3xvznmzew9y6SP0=\n"
+			for _, sg := range []struct {
+				name string
+				s    Signer
+			}{
+				{"NewSignerForCosignatureV1", s1},
+				{"NewSigner", s2},
+			} {
+				if sg.s.Name() != tc.keyName {
+					t.Errorf("%s.Name() = %q, want %q", sg.name, sg.s.Name(), tc.keyName)
+				}
+				signed, err := note.Sign(&note.Note{Text: msg}, sg.s)
+				if err != nil {
+					t.Fatalf("%s sign failed: %v", sg.name, err)
+				}
+				for _, vr := range verifiers {
+					if vr.v.Name() != tc.keyName {
+						t.Errorf("%s.Name() = %q, want %q", vr.name, vr.v.Name(), tc.keyName)
+					}
+					if vr.v.KeyHash() != sg.s.KeyHash() {
+						t.Errorf("%s.KeyHash() = %08x, want %08x", vr.name, vr.v.KeyHash(), sg.s.KeyHash())
+					}
+					opened, err := note.Open(signed, note.VerifierList(vr.v))
+					if err != nil {
+						t.Errorf("note.Open(%s -> %s) failed: %v", sg.name, vr.name, err)
+						continue
+					}
+					if _, err := CosignatureTimestamp(opened.Sigs[0]); err != nil {
+						t.Errorf("CosignatureTimestamp(%s -> %s) failed: %v", sg.name, vr.name, err)
+					}
+				}
+			}
+		})
+	}
+
+	t.Run("VKeyToCosignatureV1 equivalence", func(t *testing.T) {
+		seed := bytes.Repeat([]byte{0x42}, ed25519.SeedSize)
+		const name = "witness.example/equiv"
+
+		_, edVkey, err := note.GenerateKey(bytes.NewReader(seed), name)
+		if err != nil {
+			t.Fatalf("note.GenerateKey: %v", err)
+		}
+		convertedVkey, err := VKeyToCosignatureV1(edVkey)
+		if err != nil {
+			t.Fatalf("VKeyToCosignatureV1: %v", err)
+		}
+
+		_, cosigVkey, err := GenerateCosignatureV1Key(bytes.NewReader(seed), name)
+		if err != nil {
+			t.Fatalf("GenerateCosignatureV1Key: %v", err)
+		}
+		if cosigVkey != convertedVkey {
+			t.Errorf("GenerateCosignatureV1Key vkey = %q, want %q", cosigVkey, convertedVkey)
+		}
+	})
+}
+
+func TestNewStrictVerifierForCosignatureV1(t *testing.T) {
+	_, edVk := mustGenerateEd25519Key(t, "witness.example/ed25519")
+	cosigSk, cosigVk, err := GenerateCosignatureV1Key(rand.Reader, "witness.example/cosigv1")
+	if err != nil {
+		t.Fatalf("GenerateCosignatureV1Key: %v", err)
+	}
+	mlSk, mlVk := mustGenerateMLDSAKey(t, "witness.example/mldsa")
+
+	// Canonical 1313-byte ML-DSA-44 vkey from TestMLDSAVerifyTorchwood; changing '4=' to '5=' sets a non-zero padding bit.
+	const canonicalMLVK = "witness.example/w1+a0d0cd91+Bhh6t5zW2IMElD4GJw65/1+GnMosGFhPFst8+uCD+C9/lSovRbjzbFPV7YP9rox2T9pHbsqNmvR3GTnwSFLUZIatFUlXBt0CGLU1J75PMs7G1KNj5yL4R8vvInpzaDvlBUoCLjzegUOh7KImnowtDnJRX38puLf1mStewbP61oBYZmIlWhXproauXnBl0VGbqbd8qeLQ96ENJBhFATSuxbQoJZ3dhGwkHnEQUlqHdEPgYXKwuMWfzKz4X+54eDV4c+IOFcU3/Lmis2aqAG0LoAM4X+eE569R0YVmjXdybbqrCx6dc8gwM9DZp7+gUBwWtI6ccaXJoN6kmdPBC6qUv/PHlCaFCNq170DqAbFJauGRUOBKjGyP9mSQaF6yoNrkdEOsSh039J1uaqDD7X+g5KxFWwM+R1X2HibnEW6okJaIM+MaPsAnZeQLPYbaup/2emXDsHj58+b/5S03DRszJJStFlNxHnMTe+aNyj7vbU8/GD5B3T4es6HsvNbF5+w0PRmZ/1Kkkad4+D6aFj7pMU8eVCpMZtdU8zlYcHOyNZssna8mTL11jfq9NpD5wSo+CYAiDZ/hrW9QjUYpqwzUVTr9gN14mBXfax1g9iTxRAId1ZaHBoYqyitNpE2/797iJVEshYXeh49wGPsPUp+GQYUvYVGr0CmtEYEBoXXDYechA+G1dSyKGgeU5R5ufOkLnumvHW060RKxst3eXKMi1uNyEojsTUhHclL44a6irz95MAWE4k7d9E3Tu8S6mct5WVN4TzyFKZ7PPB+mIMhsbg6n5lI62D3gMKGHTJGbGz17iNZwj0FVp5trL4OGiF6qeK2FLXesOlWYOfOFXvfuLZXvNwmry3aSi/ST+65qXHmAGLQ0ip06A8yEUt3zGZ2VI8whagfAXj2CxcFcPVgg9KI+0aJnbldm6KYcaLoI+fs1iyGQ+zgXrejm/hCyGik+JFVfZGlH+hirnNNglxRsJzIYsFT73ss3+29SnAduHZOYFqLs1aNsDytZgEhC37EL8vqIO7jY1MR8ihldBljWiVV+AQiWpyKvseP5SFP82pcfkGi6DbAAQmifLjGGcm9pCqDIUWrXIyiwt/WbtTgzEuQhdtuYEFeK59BSdpXW9UxUAYG8AjlYL+ylVUjbtz9CYGHtaCoi3NxkaRaUZj2Mtx2WQSyDI2uUTUwOpiqVwJEAE3lpOBqHV58hEosDfAxR1A0bw7px4LFqsfuFcapsP1015sb2IIQn8zx8lfIVtTon2jYMyANqACceBA43Vu9+o7ij+wwEVedRsO5d6/F6KZjL+weSiaIzGRQUazSvkMGZr+3rgaol3wgHkBY/AvJRPqxEZA14+e+HVl7rOTR96o20g72AoDnTj+V5LpggrDEd2eJeYR+1SjphxPKE+Y4U4NJ/Zv68Cji9lmIXAo9ohBGxcjkPdw2Ha2HTE0WT3HwROtbBeFfEvKaAkke9VS5fGmPqkLXzuBmZ4OsRM5zwhW0mcZUjWp4anpuSyngVddL3NyTUg2UBoU3sQVAKr/VtboY0Fn6LuSi+jS6IXUhNkTfHEkZXnWN1oYnQs46/iWbJk0NxjPaCIYceU7DZTLpCuPOVRgm31FcF0AZT/T40gbgzAu7isTXhlOtswI0dpT9k2FidQPsrZh9QZr1lZjcyzqt0M2PeYcctUYY/Y75T5ZNBxxmgQ/EDwu6Y1RUAk9xa7ZrIeJ2ZHXGgwIT7yDQoj8c0nlb/k1qqMbqQey/63s4="
+	nonCanonicalMLVK := strings.TrimSuffix(canonicalMLVK, "4=") + "5="
+	const rfc6962VK = "rome.ct.filippo.io/2024h1+78f4abae+BTBZMBMGByqGSM49AgEGCCqGSM49AwEHA0IABAFzPC3fap+uINc1RQ4eRbYMUt84+bKkA8GDLN8KwVdzAgYhYSv4kS8XSheGLAHCWhIJTJbuC3sL88bNMTtrsBM="
+
+	embedCRLF := func(s string) string {
+		return s[:len(s)-4] + "\r\n" + s[len(s)-4:]
+	}
+	replaceHash := func(vk, newHash string) string {
+		name, rest, _ := strings.Cut(vk, "+")
+		_, b64, _ := strings.Cut(rest, "+")
+		return name + "+" + newHash + "+" + b64
+	}
+
+	for _, tc := range []struct {
+		desc    string
+		vkey    string
+		wantErr error
+		anyErr  bool
+	}{
+		{
+			desc: "accepts 0x04 Ed25519 CosignatureV1 vkey (generated)",
+			vkey: cosigVk,
+		},
+		{
+			desc: "accepts 0x04 Ed25519 CosignatureV1 vkey (fixture)",
+			vkey: "remora.n621.de+da77ade7+BOvN63jn/bLvkieywe8R6UYAtVtNbZpXh34x7onlmtw2",
+		},
+		{
+			desc: "accepts 0x06 ML-DSA-44 CosignatureV1 vkey (generated)",
+			vkey: mlVk,
+		},
+		{
+			desc: "accepts 0x06 ML-DSA-44 CosignatureV1 vkey (fixture)",
+			vkey: canonicalMLVK,
+		},
+		{
+			desc:    "rejects 0x01 plain Ed25519 vkey",
+			vkey:    edVk,
+			wantErr: errVerifierAlg,
+		},
+		{
+			desc:    "rejects 0x02 ECDSA vkey",
+			vkey:    sigStoreKey,
+			wantErr: errVerifierAlg,
+		},
+		{
+			desc:    "rejects 0x05 RFC6962 vkey",
+			vkey:    rfc6962VK,
+			wantErr: errVerifierAlg,
+		},
+		{
+			desc:    "rejects unknown alg 0x03",
+			vkey:    "unknown.example+00000000+AwEB",
+			wantErr: errVerifierAlg,
+		},
+		{
+			desc:   "rejects empty vkey",
+			vkey:   "",
+			anyErr: true,
+		},
+		{
+			desc:   "rejects missing parts",
+			vkey:   "witness.example/w1+da77ade7",
+			anyErr: true,
+		},
+		{
+			desc:   "rejects empty key bytes",
+			vkey:   "witness.example/w1+da77ade7+",
+			anyErr: true,
+		},
+		{
+			desc:   "rejects short 0x04 key bytes",
+			vkey:   "witness.example/w1+00000000+" + base64.StdEncoding.EncodeToString([]byte{algEd25519CosignatureV1, 1, 2, 3}),
+			anyErr: true,
+		},
+		{
+			desc:   "rejects mismatched key hash on 0x04",
+			vkey:   replaceHash(cosigVk, "00000000"),
+			anyErr: true,
+		},
+		{
+			desc:   "rejects non-hex key hash",
+			vkey:   replaceHash(cosigVk, "zzzzzzzz"),
+			anyErr: true,
+		},
+		{
+			desc:   "rejects short key hash",
+			vkey:   replaceHash(cosigVk, "da77ade"),
+			anyErr: true,
+		},
+		{
+			desc:   "rejects uppercase hex key hash",
+			vkey:   "remora.n621.de+DA77ADE7+BOvN63jn/bLvkieywe8R6UYAtVtNbZpXh34x7onlmtw2",
+			anyErr: true,
+		},
+		{
+			desc:   "rejects trailing CRLF",
+			vkey:   cosigVk + "\r\n",
+			anyErr: true,
+		},
+		{
+			desc:   "rejects trailing CR",
+			vkey:   cosigVk + "\r",
+			anyErr: true,
+		},
+		{
+			desc:   "rejects trailing LF",
+			vkey:   cosigVk + "\n",
+			anyErr: true,
+		},
+		{
+			desc:   "rejects embedded CRLF",
+			vkey:   embedCRLF(cosigVk),
+			anyErr: true,
+		},
+		{
+			desc:   "rejects non-canonical base64",
+			vkey:   nonCanonicalMLVK,
+			anyErr: true,
+		},
+	} {
+		t.Run(tc.desc, func(t *testing.T) {
+			v, err := NewStrictVerifierForCosignatureV1(tc.vkey)
+			if tc.wantErr != nil {
+				if !errors.Is(err, tc.wantErr) {
+					t.Fatalf("NewStrictVerifierForCosignatureV1(%q) error = %v, want %v", tc.vkey, err, tc.wantErr)
+				}
+				return
+			}
+			if tc.anyErr {
+				if err == nil {
+					t.Fatalf("NewStrictVerifierForCosignatureV1(%q) succeeded, want error", tc.vkey)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("NewStrictVerifierForCosignatureV1(%q) unexpected error: %v", tc.vkey, err)
+			}
+			if v == nil {
+				t.Fatal("NewStrictVerifierForCosignatureV1 returned nil verifier")
+			}
+		})
+	}
+
+	// Verify that accepted 0x04 and 0x06 strict verifiers actually open signed checkpoints.
+	msg := "origin.example/log\n42\nf+7CoKgXKE/tNys9TTXcr/ad6U/K3xvznmzew9y6SP0=\n"
+	for _, tc := range []struct {
+		name string
+		skey string
+		vkey string
+	}{
+		{"ed25519-cosigv1", cosigSk, cosigVk},
+		{"mldsa44-cosigv1", mlSk, mlVk},
+	} {
+		t.Run("verify/"+tc.name, func(t *testing.T) {
+			s, err := NewSignerForCosignatureV1(tc.skey)
+			if err != nil {
+				t.Fatalf("NewSignerForCosignatureV1: %v", err)
+			}
+			v, err := NewStrictVerifierForCosignatureV1(tc.vkey)
+			if err != nil {
+				t.Fatalf("NewStrictVerifierForCosignatureV1: %v", err)
+			}
+			signed, err := note.Sign(&note.Note{Text: msg}, s)
+			if err != nil {
+				t.Fatalf("note.Sign: %v", err)
+			}
+			if _, err := note.Open(signed, note.VerifierList(v)); err != nil {
+				t.Fatalf("note.Open: %v", err)
+			}
+		})
 	}
 }

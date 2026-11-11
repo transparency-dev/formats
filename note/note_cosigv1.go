@@ -13,6 +13,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"io"
 	"math"
 	"math/bits"
 	"strings"
@@ -29,6 +30,28 @@ import (
 const (
 	timestampSize = 8
 )
+
+// GenerateCosignatureV1Key generates a named Ed25519 signer and verifier key pair
+// formatted for c2sp.org/tlog-cosignature (key type 0x04).
+// The signer key skey is private and must be kept secret.
+func GenerateCosignatureV1Key(rand io.Reader, name string) (skey, vkey string, err error) {
+	if !isValidName(name) {
+		return "", "", errSignerID
+	}
+	pub, priv, err := ed25519.GenerateKey(rand)
+	if err != nil {
+		return "", "", err
+	}
+	privBytes := append([]byte{algEd25519CosignatureV1}, priv.Seed()...)
+	pubBytes := append([]byte{algEd25519CosignatureV1}, pub...)
+
+	h := keyHashEd25519(name, pubBytes)
+
+	skey = fmt.Sprintf("PRIVATE+KEY+%s+%08x+%s", name, h, base64.StdEncoding.EncodeToString(privBytes))
+	vkey = fmt.Sprintf("%s+%08x+%s", name, h, base64.StdEncoding.EncodeToString(pubBytes))
+
+	return skey, vkey, nil
+}
 
 // GenerateMLDSAKey generates a named signer and verifier key pair. The signer key skey is private and must be kept secret.
 func GenerateMLDSAKey(name string) (skey string, vkey string, err error) {
@@ -274,6 +297,21 @@ func NewSignerForCosignatureV1(skey string) (Signer, error) {
 // the returned Verifier has a different key hash from a non-timestamped Ed25519
 // verifier key.
 func NewVerifierForCosignatureV1(vkey string) (note.Verifier, error) {
+	return newVerifierForCosignatureV1(vkey, true)
+}
+
+// NewStrictVerifierForCosignatureV1 constructs a new Verifier for timestamped
+// cosignature/v1 signatures from the provided vkey-formatted public key.
+//
+// Unlike NewVerifierForCosignatureV1, only dedicated cosignature key types are
+// accepted:
+// - an Ed25519 CosignatureV1 key (type 0x04)
+// - an ML-DSA-44 CosignatureV1 key (type 0x06)
+func NewStrictVerifierForCosignatureV1(vkey string) (note.Verifier, error) {
+	return newVerifierForCosignatureV1(vkey, false)
+}
+
+func newVerifierForCosignatureV1(vkey string, allowEd25519 bool) (note.Verifier, error) {
 	if strings.ContainsAny(vkey, "\r\n") {
 		return nil, errVerifierID
 	}
@@ -298,6 +336,9 @@ func NewVerifierForCosignatureV1(vkey string) (note.Verifier, error) {
 		return nil, errVerifierAlg
 
 	case algEd25519, algEd25519CosignatureV1:
+		if alg == algEd25519 && !allowEd25519 {
+			return nil, errVerifierAlg
+		}
 		if len(key) != 32 {
 			return nil, errVerifierID
 		}

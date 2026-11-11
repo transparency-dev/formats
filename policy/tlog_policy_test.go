@@ -299,12 +299,12 @@ func TestUnmarshal_Errors(t *testing.T) {
 		{
 			desc:   "witness with non-cosignature vkey",
 			policy: fmt.Sprintf("witness w1 %s\nquorum w1\n", ecdsaVkey),
-			errStr: "key type 0x02 is not a cosignature key type",
+			errStr: "unknown verifier algorithm",
 		},
 		{
 			desc:   "witness with plain ed25519 vkey",
 			policy: fmt.Sprintf("witness w1 %s\nquorum w1\n", wit1_ed25519_vkey),
-			errStr: "key type 0x01 is not a cosignature key type",
+			errStr: "unknown verifier algorithm",
 		},
 		{
 			desc:   "witness with mismatched key hash",
