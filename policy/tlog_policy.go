@@ -36,11 +36,6 @@ import (
 // indicates that no cosignatures are required.
 const quorumNone = "none"
 
-const (
-	algEd25519CosignatureV1 = 4
-	algMLDSA44              = 6
-)
-
 // Log represents a log declaration in a policy:
 //
 //	log <vkey> [<url>]
@@ -191,12 +186,7 @@ func (p *TLogPolicy) Unmarshal(data []byte) error {
 			if err != nil {
 				return fmt.Errorf("invalid witness vkey in %q: %w", line, err)
 			}
-			// TODO: remove this check if NewVerifierForCosignatureV1 is
-			// changed to reject non-cosignature key types itself.
-			if key[0] != algEd25519CosignatureV1 && key[0] != algMLDSA44 {
-				return fmt.Errorf("invalid witness vkey in %q: key type 0x%02x is not a cosignature key type", line, key[0])
-			}
-			v, err := f_note.NewVerifierForCosignatureV1(vkey)
+			v, err := f_note.NewStrictVerifierForCosignatureV1(vkey)
 			if err != nil {
 				return fmt.Errorf("invalid witness vkey in %q: %w", line, err)
 			}
