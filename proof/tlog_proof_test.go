@@ -65,6 +65,16 @@ func TestMarshal(t *testing.T) {
 			},
 			want: "c2sp.org/tlog-proof@v1\nindex 0\n\ncheckpoint\n",
 		},
+		{
+			name: "proof with empty non-nil extra data omits extra line",
+			proof: TLogProof{
+				Index:      0,
+				Hashes:     [][sha256.Size]byte{h1},
+				Checkpoint: []byte("checkpoint\n"),
+				ExtraData:  []byte{},
+			},
+			want: fmt.Sprintf("c2sp.org/tlog-proof@v1\nindex 0\n%s\n\ncheckpoint\n", h1b64),
+		},
 	}
 
 	for _, tt := range tests {
@@ -83,9 +93,39 @@ func TestUnmarshalErrors(t *testing.T) {
 		wantErrSubstr string
 	}{
 		{
+			name:          "empty input",
+			proof:         []byte(""),
+			wantErrSubstr: "missing expected header",
+		},
+		{
+			name:          "header without newline",
+			proof:         []byte("c2sp.org/tlog-proof@v1"),
+			wantErrSubstr: "missing expected header",
+		},
+		{
+			name:          "truncated after header",
+			proof:         []byte("c2sp.org/tlog-proof@v1\n"),
+			wantErrSubstr: "missing required index",
+		},
+		{
 			name:          "missing header",
 			proof:         []byte("wrong-header\nindex 0\n\ncheckpoint\n"),
 			wantErrSubstr: "missing expected header",
+		},
+		{
+			name:          "empty extra data",
+			proof:         []byte("c2sp.org/tlog-proof@v1\nextra \nindex 0\n\ncheckpoint\n"),
+			wantErrSubstr: "extra data",
+		},
+		{
+			name:          "extra line without newline",
+			proof:         []byte("c2sp.org/tlog-proof@v1\nextra aGVsbG8="),
+			wantErrSubstr: "missing required index",
+		},
+		{
+			name:          "truncated after extra line",
+			proof:         []byte("c2sp.org/tlog-proof@v1\nextra aGVsbG8=\n"),
+			wantErrSubstr: "missing required index",
 		},
 		{
 			name:          "invalid extra data encoding",
@@ -95,6 +135,11 @@ func TestUnmarshalErrors(t *testing.T) {
 		{
 			name:          "missing index",
 			proof:         []byte("c2sp.org/tlog-proof@v1\n\n\ncheckpoint\n"),
+			wantErrSubstr: "missing required index",
+		},
+		{
+			name:          "index line without newline",
+			proof:         []byte("c2sp.org/tlog-proof@v1\nindex 0"),
 			wantErrSubstr: "missing required index",
 		},
 		{
@@ -156,9 +201,39 @@ func TestUnmarshalErrors(t *testing.T) {
 			wantErrSubstr: "hash not base64 encoded",
 		},
 		{
-			name:          "scanner error - buffer too large",
-			proof:         []byte("c2sp.org/tlog-proof@v1\nindex 0\n" + strings.Repeat("a", 65*1024) + "\n"),
-			wantErrSubstr: "scanning tlog proof",
+			name:          "oversized hash line (>64 KiB)",
+			proof:         []byte("c2sp.org/tlog-proof@v1\nindex 0\n" + strings.Repeat("a", 65*1024) + "\n\ncheckpoint\n"),
+			wantErrSubstr: "hash length",
+		},
+		{
+			name:          "oversized invalid base64 hash line (>64 KiB)",
+			proof:         []byte("c2sp.org/tlog-proof@v1\nindex 0\n" + strings.Repeat("!", 65*1024) + "\n\ncheckpoint\n"),
+			wantErrSubstr: "hash not base64 encoded",
+		},
+		{
+			name:          "missing blank line separator after index",
+			proof:         []byte("c2sp.org/tlog-proof@v1\nindex 0\n"),
+			wantErrSubstr: "missing blank line",
+		},
+		{
+			name:          "missing blank line separator after hash",
+			proof:         []byte("c2sp.org/tlog-proof@v1\nindex 0\n" + base64.StdEncoding.EncodeToString(make([]byte, 32)) + "\n"),
+			wantErrSubstr: "missing blank line",
+		},
+		{
+			name:          "hash line without newline",
+			proof:         []byte("c2sp.org/tlog-proof@v1\nindex 0\n" + base64.StdEncoding.EncodeToString(make([]byte, 32))),
+			wantErrSubstr: "missing blank line",
+		},
+		{
+			name:          "empty checkpoint after blank line separator",
+			proof:         []byte("c2sp.org/tlog-proof@v1\nindex 0\n\n"),
+			wantErrSubstr: "missing checkpoint",
+		},
+		{
+			name:          "empty checkpoint after hashes and blank line separator",
+			proof:         []byte("c2sp.org/tlog-proof@v1\nindex 0\n" + base64.StdEncoding.EncodeToString(make([]byte, 32)) + "\n\n"),
+			wantErrSubstr: "missing checkpoint",
 		},
 		{
 			name:          "CRLF on header line",
@@ -195,7 +270,18 @@ func TestUnmarshalErrors(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			var p TLogProof
+			sentinel := TLogProof{
+				Index:      42,
+				Hashes:     [][sha256.Size]byte{sha256.Sum256([]byte("sentinel-hash"))},
+				Checkpoint: []byte("sentinel-checkpoint\n"),
+				ExtraData:  []byte("sentinel-extra"),
+			}
+			p := TLogProof{
+				Index:      sentinel.Index,
+				Hashes:     append([][sha256.Size]byte(nil), sentinel.Hashes...),
+				Checkpoint: bytes.Clone(sentinel.Checkpoint),
+				ExtraData:  bytes.Clone(sentinel.ExtraData),
+			}
 			err := p.Unmarshal(tt.proof)
 
 			if err == nil {
@@ -204,6 +290,13 @@ func TestUnmarshalErrors(t *testing.T) {
 
 			if !strings.Contains(err.Error(), tt.wantErrSubstr) {
 				t.Errorf("error message doesn't contain %q, got: %v", tt.wantErrSubstr, err)
+			}
+
+			if p.Index != sentinel.Index ||
+				len(p.Hashes) != len(sentinel.Hashes) || p.Hashes[0] != sentinel.Hashes[0] ||
+				!bytes.Equal(p.Checkpoint, sentinel.Checkpoint) ||
+				!bytes.Equal(p.ExtraData, sentinel.ExtraData) {
+				t.Errorf("Unmarshal mutated receiver on error: got %+v, want %+v", p, sentinel)
 			}
 		})
 	}
@@ -232,6 +325,15 @@ func TestRoundTrip(t *testing.T) {
 			},
 		},
 		{
+			name: "large extra data (>64 KiB)",
+			proof: TLogProof{
+				Index:      456,
+				Hashes:     [][sha256.Size]byte{sha256.Sum256([]byte("c"))},
+				Checkpoint: []byte("another checkpoint\n"),
+				ExtraData:  bytes.Repeat([]byte("x"), 65*1024),
+			},
+		},
+		{
 			name: "empty hashes",
 			proof: TLogProof{
 				Index:      789,
@@ -245,6 +347,34 @@ func TestRoundTrip(t *testing.T) {
 				Index:      math.MaxInt64,
 				Hashes:     nil,
 				Checkpoint: []byte("checkpoint\n"),
+			},
+		},
+		{
+			name: "multi-signature checkpoint with blank lines",
+			proof: TLogProof{
+				Index:  73894,
+				Hashes: [][sha256.Size]byte{sha256.Sum256([]byte("leaf-sibling"))},
+				Checkpoint: []byte("example.com/fancylog\n109482\nsFodV/vSp5O8n9a8QpW6PRY97tfOSW5bsc2Xl/EQi08=\n\n" +
+					"— example.com/fancylog hI2DJw1roloI=\n" +
+					"— witness1.example mJirIkljqY9v2B/5bg==\n"),
+			},
+		},
+		{
+			name: "checkpoint with trailing blank lines",
+			proof: TLogProof{
+				Index:  1,
+				Hashes: nil,
+				Checkpoint: []byte("example.com/fancylog\n109482\nsFodV/vSp5O8n9a8QpW6PRY97tfOSW5bsc2Xl/EQi08=\n\n" +
+					"— example.com/fancylog hI2DJw1roloI=\n\n\n"),
+			},
+		},
+		{
+			name: "checkpoint without trailing newline",
+			proof: TLogProof{
+				Index:  2,
+				Hashes: nil,
+				Checkpoint: []byte("example.com/fancylog\n109482\nsFodV/vSp5O8n9a8QpW6PRY97tfOSW5bsc2Xl/EQi08=\n\n" +
+					"— example.com/fancylog hI2DJw1roloI="),
 			},
 		},
 	}
@@ -276,5 +406,65 @@ func TestRoundTrip(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestUnmarshalCheckpointDoesNotAliasInput(t *testing.T) {
+	raw := []byte("c2sp.org/tlog-proof@v1\nindex 0\n\nexample.com/log\n1\nhash==\n\n— example.com/log sig==\n")
+	p := TLogProof{
+		ExtraData: []byte("stale-extra"),
+	}
+	if err := p.Unmarshal(raw); err != nil {
+		t.Fatalf("Unmarshal failed: %v", err)
+	}
+	if p.ExtraData != nil {
+		t.Errorf("ExtraData = %q, want nil when extra line is omitted", p.ExtraData)
+	}
+
+	wantCP := bytes.Clone(p.Checkpoint)
+	// Mutate backing array of raw input.
+	for i := range raw {
+		raw[i] = 'X'
+	}
+	if !bytes.Equal(p.Checkpoint, wantCP) {
+		t.Errorf("Checkpoint aliased input buffer: got %q, want %q", p.Checkpoint, wantCP)
+	}
+}
+
+func BenchmarkMarshal(b *testing.B) {
+	p := TLogProof{
+		Index: 73894,
+		Hashes: [][sha256.Size]byte{
+			sha256.Sum256([]byte("h1")),
+			sha256.Sum256([]byte("h2")),
+			sha256.Sum256([]byte("h3")),
+			sha256.Sum256([]byte("h4")),
+		},
+		Checkpoint: []byte("example.com/fancylog\n109482\nsFodV/vSp5O8n9a8QpW6PRY97tfOSW5bsc2Xl/EQi08=\n\n— example.com/fancylog hI2DJw1roloI=\n"),
+		ExtraData:  []byte("opaque application context"),
+	}
+	for b.Loop() {
+		_ = p.Marshal()
+	}
+}
+
+func BenchmarkUnmarshal(b *testing.B) {
+	raw := TLogProof{
+		Index: 73894,
+		Hashes: [][sha256.Size]byte{
+			sha256.Sum256([]byte("h1")),
+			sha256.Sum256([]byte("h2")),
+			sha256.Sum256([]byte("h3")),
+			sha256.Sum256([]byte("h4")),
+		},
+		Checkpoint: []byte("example.com/fancylog\n109482\nsFodV/vSp5O8n9a8QpW6PRY97tfOSW5bsc2Xl/EQi08=\n\n— example.com/fancylog hI2DJw1roloI=\n"),
+		ExtraData:  []byte("opaque application context"),
+	}.Marshal()
+
+	var p TLogProof
+	for b.Loop() {
+		if err := p.Unmarshal(raw); err != nil {
+			b.Fatal(err)
+		}
 	}
 }
