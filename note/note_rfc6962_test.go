@@ -254,7 +254,7 @@ func TestRFC6962STHToCheckpoint(t *testing.T) {
 			if err != nil {
 				t.Fatalf("RFC6962STHTimestamp: %v", err)
 			}
-			if got, want := ts, time.Unix(0, int64(sth.Timestamp*1000)); got != want {
+			if got, want := ts, time.UnixMilli(int64(sth.Timestamp)); !got.Equal(want) {
 				t.Fatalf("Got %v, want %v", got, want)
 			}
 
@@ -347,7 +347,7 @@ func TestRFC6962STHTimestamp(t *testing.T) {
 		{
 			name:     "works",
 			sig:      note.Signature{Base64: "ePSrrgAAAY5+gVlSBAMARzBFAiEAv8bOMzo3Ed/GbU9fzzJvaStX6i8xTsmEF+NqvpGhIO0CIEn1X+zzVEerdix64GEn97XCXObA2G5JQ8UDDqCKdG5m"},
-			wantTime: time.Unix(0, 1711519390034*1000),
+			wantTime: time.UnixMilli(1711519390034),
 		}, {
 			name:    "gibberish base64",
 			sig:     note.Signature{Base64: "5%/$!\n 2"},

@@ -136,7 +136,7 @@ func RFC6962STHTimestamp(s note.Signature) (time.Time, error) {
 	}
 	r = r[keyHashSize:] // Skip the hash
 	// Next 8 bytes are the timestamp as Unix millis-since-epoch:
-	return time.Unix(0, int64(binary.BigEndian.Uint64(r)*1000)), nil
+	return time.UnixMilli(int64(binary.BigEndian.Uint64(r))), nil
 }
 
 func rfc6962Keyhash(name string, logID [32]byte) uint32 {
