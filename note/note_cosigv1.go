@@ -375,8 +375,7 @@ func CosignatureTimestamp(s note.Signature) (uint64, error) {
 	if err != nil {
 		return 0, errMalformedSig
 	}
-	const minSigSize = 64 // min(ed25519.SignatureSize, mldsa.MLDSA44SignatureSize)
-	if len(r) < keyHashSize+timestampSize+minSigSize {
+	if len(r) != keyHashSize+timestampSize+ed25519.SignatureSize && len(r) != keyHashSize+timestampSize+mldsa.MLDSA44SignatureSize {
 		return 0, errVerifierAlg
 	}
 	r = r[keyHashSize:] // Skip the hash
@@ -466,6 +465,10 @@ func formatEd25519CosignatureV1(t uint64, msg []byte) ([]byte, error) {
 	//
 	// See https://c2sp.org/tlog-cosignature for more details.
 
+	// SPEC: MUST NOT exceed 2^63-1
+	if t > math.MaxInt64 {
+		return nil, errInvalidTimestamp
+	}
 	if bytes.IndexByte(msg, '\r') >= 0 {
 		return nil, errors.New("cosigned note contains carriage return")
 	}

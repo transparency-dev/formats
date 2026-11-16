@@ -36,7 +36,8 @@ import (
 // logURL is the root URL of the log.
 // pubK is the public key of the log.
 func RFC6962VerifierString(logURL string, pubK crypto.PublicKey) (string, error) {
-	if !isValidName(logURL) {
+	name := rfc6962LogName(logURL)
+	if !isValidName(name) {
 		return "", errors.New("invalid name")
 	}
 	pubSer, err := x509.MarshalPKIXPublicKey(pubK)
@@ -44,7 +45,6 @@ func RFC6962VerifierString(logURL string, pubK crypto.PublicKey) (string, error)
 		return "", err
 	}
 	logID := sha256.Sum256(pubSer)
-	name := rfc6962LogName(logURL)
 	hash := rfc6962Keyhash(name, logID)
 	return fmt.Sprintf("%s+%08x+%s", name, hash, base64.StdEncoding.EncodeToString(append([]byte{algRFC6962STH}, pubSer...))), nil
 }
@@ -131,7 +131,7 @@ func RFC6962STHTimestamp(s note.Signature) (time.Time, error) {
 	if err != nil {
 		return time.UnixMilli(0), errMalformedSig
 	}
-	if len(r) <= keyHashSize+timestampSize {
+	if len(r) <= keyHashSize+timestampSize+4 {
 		return time.UnixMilli(0), errVerifierAlg
 	}
 	r = r[keyHashSize:] // Skip the hash
@@ -184,7 +184,9 @@ func (v *rfc6962Verifer) Verify(msg, sig []byte) bool {
 
 func verifyRFC6962(key crypto.PublicKey) func([]byte, string, []byte) bool {
 	return func(msg []byte, origin string, sig []byte) bool {
-		if len(sig) < timestampSize {
+		// Timestamp, hash and signature algorithm bytes, and the 2-byte
+		// signature length must all be present before they are read.
+		if len(sig) < timestampSize+4 {
 			return false
 		}
 		t := binary.BigEndian.Uint64(sig)

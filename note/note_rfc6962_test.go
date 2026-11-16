@@ -18,6 +18,7 @@ import (
 	"crypto/x509"
 	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"strconv"
 	"strings"
 	"testing"
@@ -65,6 +66,11 @@ func TestRFC6962VerifierString(t *testing.T) {
 			url:     "ct.googleapis.com/logs/us1/argon2024+cheese",
 			pubK:    mustB64(t, "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEHblsqctplMVc5ramA7vSuNxUQxcomQwGAVAdnWTAWUYr3MgDHQW0LagJ95lB7QT75Ve6JgT2EVLOFGU7L3YrwA=="),
 			wantErr: true,
+		}, {
+			name:    "empty name after stripping scheme",
+			url:     "https://",
+			pubK:    mustB64(t, "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEHblsqctplMVc5ramA7vSuNxUQxcomQwGAVAdnWTAWUYr3MgDHQW0LagJ95lB7QT75Ve6JgT2EVLOFGU7L3YrwA=="),
+			wantErr: true,
 		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
@@ -84,6 +90,15 @@ func TestRFC6962VerifierString(t *testing.T) {
 }
 
 func TestVerify(t *testing.T) {
+	const (
+		romeVKey = "rome.ct.filippo.io/2024h1+78f4abae+BTBZMBMGByqGSM49AgEGCCqGSM49AwEHA0IABAFzPC3fap+uINc1RQ4eRbYMUt84+bKkA8GDLN8KwVdzAgYhYSv4kS8XSheGLAHCWhIJTJbuC3sL88bNMTtrsBM="
+		romeBody = "rome.ct.filippo.io/2024h1\n115474666\n2q1K6aiIJR+F7TyhiWOghoWOjY0/3dVBLsBbAvB4xCw=\n"
+	)
+	romeSynthCP := func(sigPayload []byte) []byte {
+		rawSig := append([]byte{0x78, 0xf4, 0xab, 0xae}, sigPayload...)
+		return []byte(fmt.Sprintf("%s\n\u2014 rome.ct.filippo.io/2024h1 %s\n", romeBody, base64.StdEncoding.EncodeToString(rawSig)))
+	}
+
 	for _, test := range []struct {
 		name     string
 		cp       []byte
@@ -94,21 +109,61 @@ func TestVerify(t *testing.T) {
 			// "2q1K6aiIJR+F7TyhiWOghoWOjY0/3dVBLsBbAvB4xCw=" with non-zero padding bits ('w=' -> 'x=').
 			name:     "non-canonical base64 root hash",
 			cp:       []byte(strings.Replace(romeCP, "4xCw=", "4xCx=", 1)),
-			verifier: "rome.ct.filippo.io/2024h1+78f4abae+BTBZMBMGByqGSM49AgEGCCqGSM49AwEHA0IABAFzPC3fap+uINc1RQ4eRbYMUt84+bKkA8GDLN8KwVdzAgYhYSv4kS8XSheGLAHCWhIJTJbuC3sL88bNMTtrsBM=",
+			verifier: romeVKey,
 			wantErr:  true,
 		}, {
 			name:     "works - rome",
 			cp:       []byte(romeCP),
-			verifier: "rome.ct.filippo.io/2024h1+78f4abae+BTBZMBMGByqGSM49AgEGCCqGSM49AwEHA0IABAFzPC3fap+uINc1RQ4eRbYMUt84+bKkA8GDLN8KwVdzAgYhYSv4kS8XSheGLAHCWhIJTJbuC3sL88bNMTtrsBM=",
+			verifier: romeVKey,
 		}, {
 			name:     "invalid signature",
 			cp:       []byte("B0rked" + romeCP),
-			verifier: "rome.ct.filippo.io/2024h1+78f4abae+BTBZMBMGByqGSM49AgEGCCqGSM49AwEHA0IABAFzPC3fap+uINc1RQ4eRbYMUt84+bKkA8GDLN8KwVdzAgYhYSv4kS8XSheGLAHCWhIJTJbuC3sL88bNMTtrsBM=",
+			verifier: romeVKey,
 			wantErr:  true,
 		}, {
 			name:     "leading zero in size",
 			cp:       []byte(strings.Replace(romeCP, "\n115474666\n", "\n0115474666\n", 1)),
-			verifier: "rome.ct.filippo.io/2024h1+78f4abae+BTBZMBMGByqGSM49AgEGCCqGSM49AwEHA0IABAFzPC3fap+uINc1RQ4eRbYMUt84+bKkA8GDLN8KwVdzAgYhYSv4kS8XSheGLAHCWhIJTJbuC3sL88bNMTtrsBM=",
+			verifier: romeVKey,
+			wantErr:  true,
+		}, {
+			name:     "short sig: 0 bytes after key hash",
+			cp:       romeSynthCP(make([]byte, 0)),
+			verifier: romeVKey,
+			wantErr:  true,
+		}, {
+			name:     "short sig: 7 bytes (shorter than timestamp)",
+			cp:       romeSynthCP(make([]byte, 7)),
+			verifier: romeVKey,
+			wantErr:  true,
+		}, {
+			name:     "short sig: 8 bytes (timestamp only, 0 TLS header bytes)",
+			cp:       romeSynthCP(make([]byte, 8)),
+			verifier: romeVKey,
+			wantErr:  true,
+		}, {
+			name:     "short sig: 9 bytes (timestamp + 1 TLS header byte)",
+			cp:       romeSynthCP(make([]byte, 9)),
+			verifier: romeVKey,
+			wantErr:  true,
+		}, {
+			name:     "short sig: 10 bytes (timestamp + 2 TLS header bytes)",
+			cp:       romeSynthCP(make([]byte, 10)),
+			verifier: romeVKey,
+			wantErr:  true,
+		}, {
+			name:     "short sig: 11 bytes (timestamp + 3 TLS header bytes)",
+			cp:       romeSynthCP(make([]byte, 11)),
+			verifier: romeVKey,
+			wantErr:  true,
+		}, {
+			name:     "short sig: 12 bytes (timestamp + 4 zero TLS header bytes)",
+			cp:       romeSynthCP(make([]byte, 12)),
+			verifier: romeVKey,
+			wantErr:  true,
+		}, {
+			name:     "short sig: 13 bytes (mismatched TLS sig length)",
+			cp:       romeSynthCP(make([]byte, 13)),
+			verifier: romeVKey,
 			wantErr:  true,
 		},
 	} {
@@ -128,6 +183,7 @@ func TestVerify(t *testing.T) {
 }
 
 func TestRFC6962STHToCheckpoint(t *testing.T) {
+	const argonVKey = "ct.googleapis.com/logs/us1/argon2024+7deb49d0+BTBZMBMGByqGSM49AgEGCCqGSM49AwEHA0IABB25bKnLaZTFXOa2pgO70rjcVEMXKJkMBgFQHZ1kwFlGK9zIAx0FtC2oCfeZQe0E++VXuiYE9hFSzhRlOy92K8A="
 	for _, test := range []struct {
 		name     string
 		sth      []byte
@@ -137,16 +193,26 @@ func TestRFC6962STHToCheckpoint(t *testing.T) {
 		{
 			name:     "works",
 			sth:      []byte(`{"tree_size":1267285836,"timestamp":1711642477482,"sha256_root_hash":"SHySaYoaGIV5oCMANTytRfUjfzXb7wvO9xQiGkDJlfQ=","tree_head_signature":"BAMARzBFAiAQWbsL/MbJdeR4jk8xYKWDBDGHyDcntBim9Jr1BvwPnAIhAMedQo0YuBo+ajNd9xyVOMvhOdVAeJYgOhBLQn8rca94"}`),
-			verifier: "ct.googleapis.com/logs/us1/argon2024+7deb49d0+BTBZMBMGByqGSM49AgEGCCqGSM49AwEHA0IABB25bKnLaZTFXOa2pgO70rjcVEMXKJkMBgFQHZ1kwFlGK9zIAx0FtC2oCfeZQe0E++VXuiYE9hFSzhRlOy92K8A=",
+			verifier: argonVKey,
 		}, {
 			name:     "invalid JSON",
 			sth:      []byte(`Bananas are cool : {"tree_size":1267285836,"timestamp":1711642477482,"sha256_root_hash":"SHySaYoaGIV5oCMANTytRfUjfzXb7wvO9xQiGkDJlfQ=","tree_head_signature":"BAMARzBFAiAQWbsL/MbJdeR4jk8xYKWDBDGHyDcntBim9Jr1BvwPnAIhAMedQo0YuBo+ajNd9xyVOMvhOdVAeJYgOhBLQn8rca94"}`),
-			verifier: "ct.googleapis.com/logs/us1/argon2024+7deb49d0+BTBZMBMGByqGSM49AgEGCCqGSM49AwEHA0IABB25bKnLaZTFXOa2pgO70rjcVEMXKJkMBgFQHZ1kwFlGK9zIAx0FtC2oCfeZQe0E++VXuiYE9hFSzhRlOy92K8A=",
+			verifier: argonVKey,
 			wantErr:  true,
 		}, {
 			name:     "invalid STH",
 			sth:      []byte(`{"tree_size":1267285836,"timestamp":1711642477482,"sha256_root_hash":"SHySaYoaGIV5oCMANTytRfUjfzXb7wvO9xQiGkDJlfQ=","tree_head_signature":"BananaSignature"}`),
-			verifier: "ct.googleapis.com/logs/us1/argon2024+7deb49d0+BTBZMBMGByqGSM49AgEGCCqGSM49AwEHA0IABB25bKnLaZTFXOa2pgO70rjcVEMXKJkMBgFQHZ1kwFlGK9zIAx0FtC2oCfeZQe0E++VXuiYE9hFSzhRlOy92K8A=",
+			verifier: argonVKey,
+			wantErr:  true,
+		}, {
+			name:     "empty tree_head_signature (0 bytes)",
+			sth:      []byte(`{"tree_size":1267285836,"timestamp":1711642477482,"sha256_root_hash":"SHySaYoaGIV5oCMANTytRfUjfzXb7wvO9xQiGkDJlfQ=","tree_head_signature":""}`),
+			verifier: argonVKey,
+			wantErr:  true,
+		}, {
+			name:     "truncated tree_head_signature (3 bytes, shorter than TLS DigitallySigned header)",
+			sth:      []byte(`{"tree_size":1267285836,"timestamp":1711642477482,"sha256_root_hash":"SHySaYoaGIV5oCMANTytRfUjfzXb7wvO9xQiGkDJlfQ=","tree_head_signature":"AQID"}`),
+			verifier: argonVKey,
 			wantErr:  true,
 		},
 	} {
@@ -268,5 +334,45 @@ func TestRFC6962_KeyHashValidation(t *testing.T) {
 		if _, err := NewVerifier(badVK); err == nil {
 			t.Errorf("NewVerifier(%q) succeeded, want error", badVK)
 		}
+	}
+}
+
+func TestRFC6962STHTimestamp(t *testing.T) {
+	for _, test := range []struct {
+		name     string
+		sig      note.Signature
+		wantTime time.Time
+		wantErr  bool
+	}{
+		{
+			name:     "works",
+			sig:      note.Signature{Base64: "ePSrrgAAAY5+gVlSBAMARzBFAiEAv8bOMzo3Ed/GbU9fzzJvaStX6i8xTsmEF+NqvpGhIO0CIEn1X+zzVEerdix64GEn97XCXObA2G5JQ8UDDqCKdG5m"},
+			wantTime: time.Unix(0, 1711519390034*1000),
+		}, {
+			name:    "gibberish base64",
+			sig:     note.Signature{Base64: "5%/$!\n 2"},
+			wantErr: true,
+		}, {
+			name:    "too short: 12 bytes (key hash + timestamp only)",
+			sig:     note.Signature{Base64: base64.StdEncoding.EncodeToString(make([]byte, 12))},
+			wantErr: true,
+		}, {
+			name:    "too short: 16 bytes (key hash + timestamp + 4-byte TLS header, 0 sig bytes)",
+			sig:     note.Signature{Base64: base64.StdEncoding.EncodeToString(make([]byte, 16))},
+			wantErr: true,
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			got, err := RFC6962STHTimestamp(test.sig)
+			if gotErr := err != nil; gotErr != test.wantErr {
+				t.Fatalf("RFC6962STHTimestamp(%q) err = %v, wantErr %v", test.sig.Base64, err, test.wantErr)
+			}
+			if test.wantErr {
+				return
+			}
+			if !got.Equal(test.wantTime) {
+				t.Errorf("RFC6962STHTimestamp() = %v, want %v", got, test.wantTime)
+			}
+		})
 	}
 }
