@@ -20,6 +20,7 @@ import (
 	"encoding/base64"
 	"fmt"
 	"strconv"
+	"strings"
 )
 
 const (
@@ -59,12 +60,12 @@ func (p *TLogProof) Unmarshal(data []byte) error {
 		return fmt.Errorf("tlog proof contains carriage return")
 	}
 
-	line, rem, ok := bytes.Cut(data, []byte("\n"))
-	if !ok || string(line) != tlogProofHeaderV1 {
+	line, rem, ok := strings.Cut(string(data), "\n")
+	if !ok || line != tlogProofHeaderV1 {
 		return fmt.Errorf("tlog proof missing expected header")
 	}
 
-	line, rem, ok = bytes.Cut(rem, []byte("\n"))
+	line, rem, ok = strings.Cut(rem, "\n")
 	if !ok {
 		return fmt.Errorf("tlog proof missing required index")
 	}
@@ -74,44 +75,42 @@ func (p *TLogProof) Unmarshal(data []byte) error {
 		extra []byte
 		err   error
 	)
-	if after, hasExtra := bytes.CutPrefix(line, []byte("extra ")); hasExtra {
-		e := string(after)
-		if len(e) == 0 {
+	if extraData, hasExtra := strings.CutPrefix(line, "extra "); hasExtra {
+		if len(extraData) == 0 {
 			return fmt.Errorf("tlog proof empty extra data")
 		}
-		extra, err = base64.StdEncoding.Strict().DecodeString(e)
+		extra, err = base64.StdEncoding.Strict().DecodeString(extraData)
 		if err != nil {
 			return fmt.Errorf("tlog proof extra data not base64 encoded: %w", err)
 		}
-		line, rem, ok = bytes.Cut(rem, []byte("\n"))
+		line, rem, ok = strings.Cut(rem, "\n")
 		if !ok {
 			return fmt.Errorf("tlog proof missing required index")
 		}
 	}
 
-	afterIdx, ok := bytes.CutPrefix(line, []byte("index "))
+	idxData, ok := strings.CutPrefix(line, "index ")
 	if !ok {
 		return fmt.Errorf("tlog proof missing required index")
 	}
-	idxStr := string(afterIdx)
-	if len(idxStr) > 1 && idxStr[0] == '0' {
-		return fmt.Errorf("tlog proof index has leading zeros: %q", idxStr)
+	if len(idxData) > 1 && idxData[0] == '0' {
+		return fmt.Errorf("tlog proof index has leading zeros: %q", idxData)
 	}
-	idx, err := strconv.ParseUint(idxStr, 10, 63)
+	idx, err := strconv.ParseUint(idxData, 10, 63)
 	if err != nil {
 		return fmt.Errorf("tlog proof index not a valid int64: %w", err)
 	}
 
 	var hashes [][sha256.Size]byte
 	for {
-		line, rem, ok = bytes.Cut(rem, []byte("\n"))
+		line, rem, ok = strings.Cut(rem, "\n")
 		if !ok {
 			return fmt.Errorf("tlog proof missing blank line before checkpoint")
 		}
 		if len(line) == 0 {
 			break
 		}
-		hash, err := base64.StdEncoding.Strict().DecodeString(string(line))
+		hash, err := base64.StdEncoding.Strict().DecodeString(line)
 		if err != nil {
 			return fmt.Errorf("tlog proof hash not base64 encoded: %w", err)
 		}
@@ -127,7 +126,7 @@ func (p *TLogProof) Unmarshal(data []byte) error {
 
 	p.Index = idx
 	p.Hashes = hashes
-	p.Checkpoint = bytes.Clone(rem)
+	p.Checkpoint = []byte(rem)
 	p.ExtraData = extra
 
 	return nil
