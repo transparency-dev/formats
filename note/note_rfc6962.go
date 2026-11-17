@@ -30,22 +30,8 @@ import (
 	"strings"
 	"time"
 
+	"golang.org/x/crypto/cryptobyte"
 	"golang.org/x/mod/sumdb/note"
-)
-
-const (
-	// Per https://c2sp.org/static-ct-api, a 0x05 note signature body is an
-	// RFC6962NoteSignature: an 8-byte timestamp followed by an RFC 6962 §3.5
-	// digitally-signed TreeHeadSignature, encoded on the wire as a TLS 1.2
-	// DigitallySigned struct (RFC 5246 §4.7):
-	//   - algorithm.hash (1 byte)
-	//   - algorithm.signature (1 byte)
-	//   - signature length prefix (uint16, 2 bytes)
-	//   - signature bytes (opaque signature<0..2^16-1>)
-	tlsHashAlgSize            = 1
-	tlsSigAlgSize             = 1
-	tlsSigLenSize             = 2
-	digitallySignedHeaderSize = tlsHashAlgSize + tlsSigAlgSize + tlsSigLenSize
 )
 
 // RFC6962VerifierString creates a note style verifier string for use with NewRFC6962Verifier below.
@@ -147,14 +133,15 @@ func RFC6962STHTimestamp(s note.Signature) (time.Time, error) {
 	if err != nil {
 		return time.UnixMilli(0), errMalformedSig
 	}
-	// Require the 4-byte key hash, 8-byte timestamp, 4-byte TLS DigitallySigned
-	// header, and at least 1 byte of signature.
-	if len(r) <= keyHashSize+timestampSize+digitallySignedHeaderSize {
+	var t uint64
+	b := cryptobyte.String(r)
+	// Skip the 4-byte key hash, read the 8-byte millisecond timestamp, and ensure
+	// the 4-byte TLS DigitallySigned header (hashAlg, sigAlg, uint16 sigLen) plus
+	// at least 1 signature byte follow.
+	if !b.Skip(keyHashSize) || !b.ReadUint64(&t) ||
+		!b.Skip(1+1+2) || b.Empty() {
 		return time.UnixMilli(0), errVerifierAlg
 	}
-	r = r[keyHashSize:] // Skip the hash
-	// Next 8 bytes are the timestamp as Unix millis-since-epoch:
-	t := binary.BigEndian.Uint64(r)
 	if t > math.MaxInt64 {
 		return time.UnixMilli(0), errInvalidTimestamp
 	}
@@ -206,27 +193,15 @@ func (v *rfc6962Verifer) Verify(msg, sig []byte) bool {
 
 func verifyRFC6962(key crypto.PublicKey) func([]byte, string, []byte) bool {
 	return func(msg []byte, origin string, sig []byte) bool {
-		if len(sig) < timestampSize+digitallySignedHeaderSize {
-			return false
-		}
-		t := binary.BigEndian.Uint64(sig)
-		if t > math.MaxInt64 {
-			return false
-		}
-		// slice off timestamp bytes
-		sig = sig[timestampSize:]
-
-		hAlg := sig[0]
-		sAlg := sig[1]
-		// slice off the hAlg and sAlg bytes read above
-		sig = sig[tlsHashAlgSize+tlsSigAlgSize:]
-
-		// Figure out sig bytes length
-		sigLen := binary.BigEndian.Uint16(sig)
-		sig = sig[tlsSigLenSize:] // Slice off length bytes
-
-		// All that remains should be the signature bytes themselves, and nothing more.
-		if len(sig) != int(sigLen) {
+		// Per https://c2sp.org/static-ct-api, sig is an RFC6962NoteSignature:
+		// uint64 timestamp followed by a TLS 1.2 DigitallySigned struct (RFC 5246 §4.7).
+		var t uint64
+		var hAlg, sAlg uint8
+		var rawSig cryptobyte.String
+		s := cryptobyte.String(sig)
+		if !s.ReadUint64(&t) || t > math.MaxInt64 ||
+			!s.ReadUint8(&hAlg) || !s.ReadUint8(&sAlg) ||
+			!s.ReadUint16LengthPrefixed(&rawSig) || !s.Empty() {
 			return false
 		}
 
@@ -249,7 +224,7 @@ func verifyRFC6962(key crypto.PublicKey) func([]byte, string, []byte) bool {
 			if sAlg != 0x03 {
 				return false
 			}
-			return ecdsa.VerifyASN1(k, dgst[:], sig)
+			return ecdsa.VerifyASN1(k, dgst[:], rawSig)
 		default:
 			return false
 		}
