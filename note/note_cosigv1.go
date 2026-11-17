@@ -375,7 +375,7 @@ func CosignatureTimestamp(s note.Signature) (uint64, error) {
 	if err != nil {
 		return 0, errMalformedSig
 	}
-	if len(r) != keyHashSize+timestampSize+ed25519.SignatureSize && len(r) != keyHashSize+timestampSize+mldsa.MLDSA44SignatureSize {
+	if l := len(r); l != keyHashSize+timestampSize+ed25519.SignatureSize && l != keyHashSize+timestampSize+mldsa.MLDSA44SignatureSize {
 		return 0, errVerifierAlg
 	}
 	r = r[keyHashSize:] // Skip the hash

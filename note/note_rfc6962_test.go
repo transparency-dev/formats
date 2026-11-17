@@ -17,8 +17,10 @@ package note
 import (
 	"crypto/x509"
 	"encoding/base64"
+	"encoding/binary"
 	"encoding/json"
 	"fmt"
+	"math"
 	"strconv"
 	"strings"
 	"testing"
@@ -338,6 +340,9 @@ func TestRFC6962_KeyHashValidation(t *testing.T) {
 }
 
 func TestRFC6962STHTimestamp(t *testing.T) {
+	overMaxTsSig := make([]byte, 20)
+	binary.BigEndian.PutUint64(overMaxTsSig[keyHashSize:], math.MaxInt64+1)
+
 	for _, test := range []struct {
 		name     string
 		sig      note.Signature
@@ -359,6 +364,10 @@ func TestRFC6962STHTimestamp(t *testing.T) {
 		}, {
 			name:    "too short: 16 bytes (key hash + timestamp + 4-byte TLS header, 0 sig bytes)",
 			sig:     note.Signature{Base64: base64.StdEncoding.EncodeToString(make([]byte, 16))},
+			wantErr: true,
+		}, {
+			name:    "timestamp exceeds math.MaxInt64",
+			sig:     note.Signature{Base64: base64.StdEncoding.EncodeToString(overMaxTsSig)},
 			wantErr: true,
 		},
 	} {

@@ -25,11 +25,27 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"strconv"
 	"strings"
 	"time"
 
 	"golang.org/x/mod/sumdb/note"
+)
+
+const (
+	// Per https://c2sp.org/static-ct-api, a 0x05 note signature body is an
+	// RFC6962NoteSignature: an 8-byte timestamp followed by an RFC 6962 §3.5
+	// digitally-signed TreeHeadSignature, encoded on the wire as a TLS 1.2
+	// DigitallySigned struct (RFC 5246 §4.7):
+	//   - algorithm.hash (1 byte)
+	//   - algorithm.signature (1 byte)
+	//   - signature length prefix (uint16, 2 bytes)
+	//   - signature bytes (opaque signature<0..2^16-1>)
+	tlsHashAlgSize            = 1
+	tlsSigAlgSize             = 1
+	tlsSigLenSize             = 2
+	digitallySignedHeaderSize = tlsHashAlgSize + tlsSigAlgSize + tlsSigLenSize
 )
 
 // RFC6962VerifierString creates a note style verifier string for use with NewRFC6962Verifier below.
@@ -131,12 +147,18 @@ func RFC6962STHTimestamp(s note.Signature) (time.Time, error) {
 	if err != nil {
 		return time.UnixMilli(0), errMalformedSig
 	}
-	if len(r) <= keyHashSize+timestampSize+4 {
+	// Require the 4-byte key hash, 8-byte timestamp, 4-byte TLS DigitallySigned
+	// header, and at least 1 byte of signature.
+	if len(r) <= keyHashSize+timestampSize+digitallySignedHeaderSize {
 		return time.UnixMilli(0), errVerifierAlg
 	}
 	r = r[keyHashSize:] // Skip the hash
 	// Next 8 bytes are the timestamp as Unix millis-since-epoch:
-	return time.UnixMilli(int64(binary.BigEndian.Uint64(r))), nil
+	t := binary.BigEndian.Uint64(r)
+	if t > math.MaxInt64 {
+		return time.UnixMilli(0), errInvalidTimestamp
+	}
+	return time.UnixMilli(int64(t)), nil
 }
 
 func rfc6962Keyhash(name string, logID [32]byte) uint32 {
@@ -184,23 +206,24 @@ func (v *rfc6962Verifer) Verify(msg, sig []byte) bool {
 
 func verifyRFC6962(key crypto.PublicKey) func([]byte, string, []byte) bool {
 	return func(msg []byte, origin string, sig []byte) bool {
-		// Timestamp, hash and signature algorithm bytes, and the 2-byte
-		// signature length must all be present before they are read.
-		if len(sig) < timestampSize+4 {
+		if len(sig) < timestampSize+digitallySignedHeaderSize {
 			return false
 		}
 		t := binary.BigEndian.Uint64(sig)
+		if t > math.MaxInt64 {
+			return false
+		}
 		// slice off timestamp bytes
 		sig = sig[timestampSize:]
 
 		hAlg := sig[0]
 		sAlg := sig[1]
 		// slice off the hAlg and sAlg bytes read above
-		sig = sig[2:]
+		sig = sig[tlsHashAlgSize+tlsSigAlgSize:]
 
 		// Figure out sig bytes length
 		sigLen := binary.BigEndian.Uint16(sig)
-		sig = sig[2:] // Slice off length bytes
+		sig = sig[tlsSigLenSize:] // Slice off length bytes
 
 		// All that remains should be the signature bytes themselves, and nothing more.
 		if len(sig) != int(sigLen) {
