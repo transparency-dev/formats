@@ -25,10 +25,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"strconv"
 	"strings"
 	"time"
 
+	"golang.org/x/crypto/cryptobyte"
 	"golang.org/x/mod/sumdb/note"
 )
 
@@ -36,7 +38,8 @@ import (
 // logURL is the root URL of the log.
 // pubK is the public key of the log.
 func RFC6962VerifierString(logURL string, pubK crypto.PublicKey) (string, error) {
-	if !isValidName(logURL) {
+	name := rfc6962LogName(logURL)
+	if !isValidName(name) {
 		return "", errors.New("invalid name")
 	}
 	pubSer, err := x509.MarshalPKIXPublicKey(pubK)
@@ -44,7 +47,6 @@ func RFC6962VerifierString(logURL string, pubK crypto.PublicKey) (string, error)
 		return "", err
 	}
 	logID := sha256.Sum256(pubSer)
-	name := rfc6962LogName(logURL)
 	hash := rfc6962Keyhash(name, logID)
 	return fmt.Sprintf("%s+%08x+%s", name, hash, base64.StdEncoding.EncodeToString(append([]byte{algRFC6962STH}, pubSer...))), nil
 }
@@ -131,12 +133,19 @@ func RFC6962STHTimestamp(s note.Signature) (time.Time, error) {
 	if err != nil {
 		return time.UnixMilli(0), errMalformedSig
 	}
-	if len(r) <= keyHashSize+timestampSize {
+	var t uint64
+	b := cryptobyte.String(r)
+	// Skip the 4-byte key hash, read the 8-byte millisecond timestamp, and ensure
+	// the 4-byte TLS DigitallySigned header (hashAlg, sigAlg, uint16 sigLen) plus
+	// at least 1 signature byte follow.
+	if !b.Skip(keyHashSize) || !b.ReadUint64(&t) ||
+		!b.Skip(1+1+2) || b.Empty() {
 		return time.UnixMilli(0), errVerifierAlg
 	}
-	r = r[keyHashSize:] // Skip the hash
-	// Next 8 bytes are the timestamp as Unix millis-since-epoch:
-	return time.Unix(0, int64(binary.BigEndian.Uint64(r)*1000)), nil
+	if t > math.MaxInt64 {
+		return time.UnixMilli(0), errInvalidTimestamp
+	}
+	return time.UnixMilli(int64(t)), nil
 }
 
 func rfc6962Keyhash(name string, logID [32]byte) uint32 {
@@ -184,24 +193,15 @@ func (v *rfc6962Verifer) Verify(msg, sig []byte) bool {
 
 func verifyRFC6962(key crypto.PublicKey) func([]byte, string, []byte) bool {
 	return func(msg []byte, origin string, sig []byte) bool {
-		if len(sig) < timestampSize {
-			return false
-		}
-		t := binary.BigEndian.Uint64(sig)
-		// slice off timestamp bytes
-		sig = sig[timestampSize:]
-
-		hAlg := sig[0]
-		sAlg := sig[1]
-		// slice off the hAlg and sAlg bytes read above
-		sig = sig[2:]
-
-		// Figure out sig bytes length
-		sigLen := binary.BigEndian.Uint16(sig)
-		sig = sig[2:] // Slice off length bytes
-
-		// All that remains should be the signature bytes themselves, and nothing more.
-		if len(sig) != int(sigLen) {
+		// Per https://c2sp.org/static-ct-api, sig is an RFC6962NoteSignature:
+		// uint64 timestamp followed by a TLS 1.2 DigitallySigned struct (RFC 5246 §4.7).
+		var t uint64
+		var hAlg, sAlg uint8
+		var rawSig cryptobyte.String
+		s := cryptobyte.String(sig)
+		if !s.ReadUint64(&t) || t > math.MaxInt64 ||
+			!s.ReadUint8(&hAlg) || !s.ReadUint8(&sAlg) ||
+			!s.ReadUint16LengthPrefixed(&rawSig) || !s.Empty() {
 			return false
 		}
 
@@ -224,7 +224,7 @@ func verifyRFC6962(key crypto.PublicKey) func([]byte, string, []byte) bool {
 			if sAlg != 0x03 {
 				return false
 			}
-			return ecdsa.VerifyASN1(k, dgst[:], sig)
+			return ecdsa.VerifyASN1(k, dgst[:], rawSig)
 		default:
 			return false
 		}

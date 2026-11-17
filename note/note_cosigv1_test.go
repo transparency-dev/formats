@@ -11,6 +11,8 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/base64"
+	"encoding/binary"
+	"math"
 	"strings"
 	"testing"
 	"time"
@@ -145,14 +147,56 @@ func TestVerifierInvalidSig(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	v := s.Verifier()
 
-	msg := "test\n123\nf+7CoKgXKE/tNys9TTXcr/ad6U/K3xvznmzew9y6SP0=\n"
-	if _, err := note.Sign(&note.Note{Text: msg}, s); err != nil {
+	msg := []byte("test\n123\nf+7CoKgXKE/tNys9TTXcr/ad6U/K3xvznmzew9y6SP0=\n")
+	validSig, err := s.Sign(msg)
+	if err != nil {
 		t.Fatal(err)
 	}
 
-	if _, err := note.Open([]byte("nobbled"), note.VerifierList(s.Verifier())); err == nil {
-		t.Fatal("Verifier validated incorrect signature")
+	overMaxTsSig := append([]byte(nil), validSig...)
+	binary.BigEndian.PutUint64(overMaxTsSig, math.MaxInt64+1)
+
+	corruptSig := append([]byte(nil), validSig...)
+	corruptSig[len(corruptSig)-1] ^= 1
+
+	for _, test := range []struct {
+		name string
+		msg  []byte
+		sig  []byte
+	}{
+		{
+			name: "short signature",
+			msg:  msg,
+			sig:  validSig[:len(validSig)-1],
+		},
+		{
+			name: "long signature",
+			msg:  msg,
+			sig:  append(append([]byte(nil), validSig...), 0),
+		},
+		{
+			name: "corrupted signature bytes",
+			msg:  msg,
+			sig:  corruptSig,
+		},
+		{
+			name: "timestamp exceeds 2^63-1",
+			msg:  msg,
+			sig:  overMaxTsSig,
+		},
+		{
+			name: "malformed note body (too few lines)",
+			msg:  []byte("nobbled"),
+			sig:  validSig,
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			if v.Verify(test.msg, test.sig) {
+				t.Errorf("Verify() = true, want false")
+			}
+		})
 	}
 }
 
@@ -244,6 +288,10 @@ func TestCoSigV1Timestamp(t *testing.T) {
 			name:    "gibberish",
 			sig:     note.Signature{Base64: "5%/$!\n 2"},
 			wantErr: true,
+		}, {
+			name:    "non-cosignature length (80 bytes)",
+			sig:     note.Signature{Base64: base64.StdEncoding.EncodeToString(make([]byte, 80))},
+			wantErr: true,
 		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
@@ -278,6 +326,10 @@ func TestCosignatureTimestamp(t *testing.T) {
 		}, {
 			name:    "gibberish",
 			sig:     note.Signature{Base64: "5%/$!\n 2"},
+			wantErr: true,
+		}, {
+			name:    "non-cosignature length (80 bytes)",
+			sig:     note.Signature{Base64: base64.StdEncoding.EncodeToString(make([]byte, 80))},
 			wantErr: true,
 		},
 	} {

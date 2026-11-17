@@ -101,6 +101,9 @@ func NewECDSAVerifier(key string) (note.Verifier, error) {
 	if got, want := len(parts), 3; got != want {
 		return nil, fmt.Errorf("key has %d parts, expected %d: %q", got, want, key)
 	}
+	if !isValidName(parts[0]) {
+		return nil, fmt.Errorf("key has invalid name %q", parts[0])
+	}
 	keyBytes, err := base64.StdEncoding.Strict().DecodeString(parts[2])
 	if err != nil {
 		return nil, fmt.Errorf("key has invalid base64 %q: %v", parts[2], err)

@@ -151,6 +151,14 @@ func TestNewECDSAVerifier(t *testing.T) {
 			name:    "short keyhash",
 			pubK:    "rekor.sigstore.dev" + "+" + sigStoreKeyHash[1:] + "+" + sigStoreKeyMaterial,
 			wantErr: true,
+		}, {
+			name:    "empty name",
+			pubK:    "+" + sigStoreKeyHash + "+" + sigStoreKeyMaterial,
+			wantErr: true,
+		}, {
+			name:    "whitespace in name",
+			pubK:    "rekor sigstore" + "+" + sigStoreKeyHash + "+" + sigStoreKeyMaterial,
+			wantErr: true,
 		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
